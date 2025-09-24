@@ -2,60 +2,54 @@ pipeline {
     agent any
 
     environment {
-        PYTHON = 'C:/Users/geras/AppData/Local/Programs/Python/Python312/python.exe'
-        APP_DIR = 'C:/devops'
-        FLASK_LOG = 'C:/devops/flask.log'
-        FLASK_PID = 'C:/devops/flask.pid'
+        VENV = "${WORKSPACE}\\venv"
+        PYTHON = "${WORKSPACE}\\venv\\Scripts\\python.exe"
+        PIP = "${WORKSPACE}\\venv\\Scripts\\pip.exe"
     }
 
     stages {
         stage('Checkout') {
             steps {
-                git branch: "${env.BRANCH_NAME}", url: 'https://github.com/Veronika-Gerasimova/lab1_devops.git', credentialsId: 'github-token'
+                git branch: 'dev', url: 'https://github.com/<username>/flask_students.git'
             }
         }
 
-        stage('Install dependencies') {
+        stage('Setup Python') {
             steps {
-                bat "\"${env.PYTHON}\" -m pip install --upgrade pip"
-                bat "\"${env.PYTHON}\" -m pip install -r ${env.APP_DIR}\\requirements.txt"
+                // Создаем виртуальное окружение
+                bat "python -m venv venv"
+                // Обновляем pip
+                bat "\"${PIP}\" install --upgrade pip"
+                // Устанавливаем зависимости
+                bat "\"${PIP}\" install -r requirements.txt"
             }
         }
 
-        stage('Run tests') {
+        stage('Run Tests') {
             steps {
-                bat "\"${env.PYTHON}\" -m pytest -v ${env.APP_DIR}"
+                // Запуск тестов через pytest
+                bat "\"${PYTHON}\" -m pytest -v"
             }
         }
 
-        stage('Deploy Flask App') {
+        stage('Deploy') {
             when {
-                branch 'main'
+                branch 'main'  // Деплой только из main
             }
             steps {
-                echo 'Stopping previous Flask server if exists...'
-                script {
-                    if (fileExists(env.FLASK_PID)) {
-                        bat """
-                        for /F %i in (${env.FLASK_PID}) do (
-                            tasklist /FI "PID eq %i" | find "%i" >nul && taskkill /PID %i /F || echo Process %i not running
-                        )
-                        del ${env.FLASK_PID}
-                        """
-                    }
-                }
-
-                echo 'Starting Flask server in background...'
-                powershell """
-                Start-Process -FilePath '${env.PYTHON}' -ArgumentList '-m flask run --host=0.0.0.0 --port=5000' -WorkingDirectory '${env.APP_DIR}' -RedirectStandardOutput '${env.FLASK_LOG}' -RedirectStandardError '${env.FLASK_LOG}' -WindowStyle Hidden -PassThru | ForEach-Object { $_.Id > '${env.FLASK_PID}' }
-                """
+                echo 'Deploying Flask app...'
+                // Запуск Flask в фоновом режиме через Windows cmd
+                bat "start /B \"FlaskApp\" \"${PYTHON}\" app.py"
             }
         }
     }
 
     post {
-        always {
-            echo "Pipeline finished for branch ${env.BRANCH_NAME}"
+        success {
+            echo 'Pipeline succeeded!'
+        }
+        failure {
+            echo 'Pipeline failed!'
         }
     }
 }
