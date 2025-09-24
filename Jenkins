@@ -1,14 +1,85 @@
 pipeline {
-    agent { 'docker' }
+    agent any
+
+    environment {
+        PYTHON_PATH = 'C:\\Users\\geras\\AppData\\Local\\Programs\\Python\\Python312\\python.exe'
+        VENV_DIR = "venv"
+        FLASK_PORT = "5000"
+        HOST_IP = "192.168.0.106" // Замените на IP вашего ноутбука
+    }
+
+    options {
+        timestamps()
+    }
+
     stages {
-        stage('python test') {
-             agent { docker } {
-          label 'docker'
-          image 'python:3.12-alpine'
-        }
+        stage('Checkout') {
             steps {
-                sh 'python --version'
-                    }
+                checkout scm
+            }
+        }
+
+        stage('Quality Test') {
+            steps {
+                echo "Running flake8..."
+                bat """
+                    "%PYTHON_PATH%" -m venv %VENV_DIR%
+                    call %VENV_DIR%\\Scripts\\activate && pip install --upgrade pip
+                    call %VENV_DIR%\\Scripts\\activate && pip install flake8
+                    call %VENV_DIR%\\Scripts\\activate && flake8 app.py test_app.py || exit 0
+                """
+            }
+        }
+
+        stage('Unit Test') {
+            steps {
+                echo "Running pytest..."
+                bat """
+                    call %VENV_DIR%\\Scripts\\activate
+                    pip install flask pytest
+                    if not exist reports mkdir reports
+                    pytest --junitxml=reports\\junit.xml
+                """
+            }
+            post {
+                always {
+                    junit 'reports/junit.xml'
                 }
             }
         }
+
+        stage('Rebuild / Deploy') {
+            steps {
+                echo "Deploying Flask app..."
+                bat """
+                    call %VENV_DIR%\\Scripts\\activate
+                    pip install -r requirements.txt
+                    REM Убиваем старый процесс Flask на порту %FLASK_PORT%
+                    for /f "tokens=5" %%a in ('netstat -ano ^| findstr :%FLASK_PORT%') do taskkill /F /PID %%a
+                    REM Запускаем Flask в фоне на 0.0.0.0:%FLASK_PORT%
+                    start "" /B cmd /c "call %VENV_DIR%\\Scripts\\activate && python app.py"
+                    REM Ждём 10 секунд, чтобы сервер успел подняться
+                    timeout /T 10 /NOBREAK >nul
+                """
+            }
+        }
+
+        stage('Acceptance Tests') {
+            steps {
+                echo "Checking if Flask app is up..."
+                bat """
+                    curl http://%HOST_IP%:%FLASK_PORT%/ || exit 1
+                """
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Pipeline finished SUCCESS"
+        }
+        failure {
+            echo "❌ Pipeline FAILED"
+        }
+    }
+}
