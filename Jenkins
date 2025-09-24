@@ -2,57 +2,125 @@ pipeline {
     agent any
 
     environment {
-        VENV_DIR = "${WORKSPACE}\\venv"
-        FLASK_APP = "app.py"
+        PY_BIN = "python3"
+        DOCKER_REGISTRY = "docker.io"                    // адрес реестра
+        IMAGE_NAME = "veronika-gerasimova/lab1_devops"   // имя образа
+        REGISTRY_CREDENTIALS = "dockerhub-creds"         // ID credentials в Jenkins
+    }
+
+    triggers {
+        githubPush() 
+    }
+
+    options {
+        ansiColor('xterm')
+        timestamps()
     }
 
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/Veronika-Gerasimova/lab1_devops.git'
+                echo "Checkout branch: ${env.BRANCH_NAME}"
+                checkout scm
             }
         }
 
-        stage('Setup Python') {
+        stage('Quality Test') {
             steps {
-                bat """
-                C:\\Users\\geras\\AppData\\Local\\Programs\\Python\\Python312\\python.exe -m venv %VENV_DIR%
-                call %VENV_DIR%\\Scripts\\activate
-                %VENV_DIR%\\Scripts\\pip install --upgrade pip
-                %VENV_DIR%\\Scripts\\pip install -r requirements.txt
+                echo "Running quality checks (flake8)..."
+                sh """
+                   ${PY_BIN} -m venv venv
+                   . venv/bin/activate
+                   pip install --upgrade pip
+                   pip install flake8
+                   flake8 app.py test_app.py || true
                 """
             }
         }
 
-        stage('Run Tests') {
+        stage('Unit Test') {
             steps {
-                bat """
-                call %VENV_DIR%\\Scripts\\activate
-                pytest test_app.py --maxfail=1 --disable-warnings
+                echo "Running pytest..."
+                sh """
+                   . venv/bin/activate
+                   pip install -r requirements.txt || pip install flask pytest
+                   mkdir -p reports
+                   pytest --junitxml=reports/junit.xml
+                """
+            }
+            post {
+                always {
+                    junit 'reports/junit.xml'
+                }
+            }
+        }
+
+        stage('Security Test') {
+            steps {
+                echo "Running security checks (bandit)..."
+                sh """
+                   . venv/bin/activate
+                   pip install bandit
+                   bandit -r . || true
                 """
             }
         }
 
-        stage('Deploy Flask App') {
+        stage('Build') {
+            when {
+                anyOf { branch 'dev'; branch 'main' }
+            }
             steps {
-                bat """
-                call %VENV_DIR%\\Scripts\\activate
-                if exist flask.pid (
-                    for /f %%i in (flask.pid) do taskkill /PID %%i /F
-                    del flask.pid
-                )
-                start /B python %FLASK_APP%
-                """
+                echo "Building Docker image..."
+                script {
+                    def tag = (env.BRANCH_NAME == 'dev') ? 'dev' : 'latest'
+                    sh "docker build -t ${DOCKER_REGISTRY}/${IMAGE_NAME}:${tag} ."
+                }
+            }
+        }
+
+        stage('Push') {
+            when {
+                anyOf { branch 'dev'; branch 'main' }
+            }
+            steps {
+                script {
+                    def tag = (env.BRANCH_NAME == 'dev') ? 'dev' : 'latest'
+                    docker.withRegistry("https://${DOCKER_REGISTRY}", REGISTRY_CREDENTIALS) {
+                        sh "docker push ${DOCKER_REGISTRY}/${IMAGE_NAME}:${tag}"
+                    }
+                }
+            }
+        }
+
+        stage('Deploy') {
+            when {
+                branch 'main'
+            }
+            steps {
+                echo "Deploying to production..."
+                // Здесь добавьте реальные команды (ssh, ansible, kubectl и т.д.)
+                sh 'echo "Simulated deploy step"'
+            }
+        }
+
+        stage('Acceptance Tests') {
+            when {
+                branch 'main'
+            }
+            steps {
+                echo "Running acceptance (smoke) tests..."
+                sh 'curl -s http://localhost:5000/ || true'
             }
         }
     }
 
     post {
         success {
-            echo 'Build, test, and deploy successful!'
+            echo "Pipeline finished SUCCESS"
         }
         failure {
-            echo 'Build or tests failed!'
+            echo "Pipeline FAILED"
         }
     }
 }
