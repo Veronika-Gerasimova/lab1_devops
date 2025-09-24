@@ -16,10 +16,10 @@ pipeline {
         stage('Setup Python') {
             steps {
                 bat """
-                python -m venv %VENV_DIR%
+                C:\\Users\\geras\\AppData\\Local\\Microsoft\\WindowsApps\\python.exe -m venv %VENV_DIR%
                 call %VENV_DIR%\\Scripts\\activate
-                pip install --upgrade pip
-                pip install -r requirements.txt
+                %VENV_DIR%\\Scripts\\pip install --upgrade pip
+                %VENV_DIR%\\Scripts\\pip install -r requirements.txt
                 """
             }
         }
