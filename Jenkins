@@ -2,84 +2,59 @@ pipeline {
     agent any
 
     environment {
-        PYTHON_PATH = 'C:\\Users\\geras\\AppData\\Local\\Programs\\Python\\Python312\\python.exe'
-        VENV_DIR = "venv"
-        FLASK_PORT = "5000"
-        HOST_IP = "192.168.0.106" // Замените на IP вашего ноутбука
-    }
-
-    options {
-        timestamps()
+        VENV = "${WORKSPACE}\\venv"
     }
 
     stages {
         stage('Checkout') {
             steps {
-                checkout scm
+                git branch: 'dev', url: 'https://github.com/Veronika-Gerasimova/lab1_devops.git'
             }
         }
 
         stage('Quality Test') {
             steps {
-                echo "Running flake8..."
-                bat """
-                    "%PYTHON_PATH%" -m venv %VENV_DIR%
-                    call %VENV_DIR%\\Scripts\\activate && pip install --upgrade pip
-                    call %VENV_DIR%\\Scripts\\activate && pip install flake8
-                    call %VENV_DIR%\\Scripts\\activate && flake8 app.py test_app.py || exit 0
-                """
+                bat 'python -m venv "%VENV%"'
+                bat '"%VENV%\\Scripts\\activate" && pip install -r requirements.txt'
+                bat '"%VENV%\\Scripts\\activate" && flake8 app.py test_app.py'
             }
         }
 
         stage('Unit Test') {
             steps {
-                echo "Running pytest..."
-                bat """
-                    call %VENV_DIR%\\Scripts\\activate
-                    pip install flask pytest
-                    if not exist reports mkdir reports
-                    pytest --junitxml=reports\\junit.xml
-                """
-            }
-            post {
-                always {
-                    junit 'reports/junit.xml'
-                }
+                bat '"%VENV%\\Scripts\\activate" && pytest test_app.py'
             }
         }
 
-        stage('Rebuild / Deploy') {
+        stage('Security Test') {
             steps {
-                echo "Deploying Flask app..."
-                bat """
-                    call %VENV_DIR%\\Scripts\\activate
-                    pip install -r requirements.txt
-                    REM Убиваем старый процесс Flask на порту %FLASK_PORT%
-                    for /f "tokens=5" %%a in ('netstat -ano ^| findstr :%FLASK_PORT%') do taskkill /F /PID %%a
-                    REM Запускаем Flask в фоне на 0.0.0.0:%FLASK_PORT%
-                    start "" /B cmd /c "call %VENV_DIR%\\Scripts\\activate && python app.py"
-                    REM Ждём 10 секунд, чтобы сервер успел подняться
-                    timeout /T 10 /NOBREAK >nul
-                """
+                bat '"%VENV%\\Scripts\\activate" && bandit -r app.py'
             }
         }
 
-        stage('Acceptance Tests') {
+        stage('Build') {
             steps {
-                echo "Checking if Flask app is up..."
-                bat """
-                    curl http://%HOST_IP%:%FLASK_PORT%/ || exit 1
-                """
+                echo 'Build stage - in Flask we can skip compilation'
+            }
+        }
+
+        stage('Push') {
+            steps {
+                echo 'Push stage - можно пушить Docker image или просто уведомление'
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                bat 'start cmd /c "%VENV%\\Scripts\\activate && python app.py"'
+                echo 'Deploy stage - приложение запущено'
             }
         }
     }
 
     post {
-        success {
-            echo "✅ Pipeline finished SUCCESS"
-        }
-        failure {
-            echo "❌ Pipeline FAILED"
+        always {
+            echo 'Pipeline finished'
         }
     }
 }
