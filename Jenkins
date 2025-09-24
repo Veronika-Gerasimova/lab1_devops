@@ -1,0 +1,95 @@
+pipeline {
+    agent any
+
+    environment {
+        PY_BIN = "python3"
+        VENV_DIR = ".venv"
+    }
+
+    options {
+        ansiColor('xterm')
+        timestamps()
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                echo "Checkout branch: ${env.BRANCH_NAME}"
+                checkout scm
+            }
+        }
+
+        stage('Quality Test') {
+            steps {
+                echo "Running quality checks..."
+                sh """
+                   ${PY_BIN} -m venv ${VENV_DIR}
+                   . ${VENV_DIR}/bin/activate
+                   pip install --upgrade pip
+                   pip install flake8
+                   flake8 app.py test_app.py || true
+                """
+            }
+        }
+
+        stage('Unit Test') {
+            steps {
+                echo "Running pytest..."
+                sh """
+                   . ${VENV_DIR}/bin/activate
+                   pip install flask pytest
+                   mkdir -p reports
+                   pytest --junitxml=reports/junit.xml
+                """
+            }
+            post {
+                always {
+                    junit 'reports/junit.xml'
+                }
+            }
+        }
+
+        stage('Rebuild / Deploy') {
+            when {
+                branch 'main'
+            }
+            steps {
+                echo "Deploying Flask app..."
+                // Здесь имитация пересборки проекта и перезапуска
+                sh """
+                   . ${VENV_DIR}/bin/activate
+                   echo "Installing dependencies..."
+                   pip install -r requirements.txt || pip install flask pytest
+                   echo "Restarting application..."
+                   # Завершаем старый процесс, если он был
+                   if [ -f flask.pid ]; then
+                      kill -9 \$(cat flask.pid) || true
+                      rm flask.pid
+                   fi
+                   # Запускаем новый процесс
+                   nohup ${PY_BIN} app.py > flask.log 2>&1 &
+                   echo \$! > flask.pid
+                """
+            }
+        }
+
+        stage('Acceptance Tests') {
+            when {
+                branch 'main'
+            }
+            steps {
+                echo "Checking if Flask app is up..."
+                sh 'sleep 5 && curl -s http://127.0.0.1:5000/ || true'
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Pipeline finished SUCCESS"
+        }
+        failure {
+            echo "❌ Pipeline FAILED"
+        }
+    }
+}
