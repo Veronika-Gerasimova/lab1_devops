@@ -10,7 +10,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'dev', url: 'https://github.com/<username>/flask_students.git'
+                git branch: 'dev', url: 'https://github.com/Veronika-Gerasimova/lab1_devops.git'
             }
         }
 
