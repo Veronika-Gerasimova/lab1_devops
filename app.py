@@ -6,7 +6,8 @@ app = Flask(__name__)
 students = [
     {"id": 1, "name": "Иван Иванов"},
     {"id": 2, "name": "Петр Петров"},
-    {"id": 3, "name": "Анна Смирнова"}
+    {"id": 3, "name": "Анна Смирнова"},
+    {"id": 4, "name": "Поля Смирнова"}
 ]
 
 # главная страница
@@ -118,4 +119,8 @@ def add_student_json():
     return jsonify(new_student), 201
 
 if __name__ == "__main__":
-    app.run(port=5000)
+    import os
+    with open("flask.pid", "w") as f:
+        f.write(str(os.getpid()))
+    app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=False)
+
