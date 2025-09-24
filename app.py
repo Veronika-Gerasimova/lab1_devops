@@ -121,6 +121,6 @@ if __name__ == "__main__":
     import os
     with open("flask.pid", "w") as f:
         f.write(str(os.getpid()))
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=8000)
 
 
