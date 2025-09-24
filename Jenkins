@@ -12,7 +12,7 @@ pipeline {
         stage('Checkout SCM') {
             steps {
                 echo 'Cloning repository...'
-                git url: 'https://github.com/Veronika-Gerasimova/lab1_devops.git', branch: 'main', credentialsId: 'github-token'
+                git branch: 'main', url: 'https://github.com/Veronika-Gerasimova/lab1_devops.git', credentialsId: 'github-token'
             }
         }
 
@@ -27,7 +27,7 @@ pipeline {
         stage('Run tests') {
             steps {
                 echo 'Running pytest...'
-                bat "\"${PYTHON}\" -m pytest -v ${APP_DIR}"
+                bat "\"${PYTHON}\" -m pytest -v ${APP_DIR}\""
             }
         }
 
@@ -36,8 +36,8 @@ pipeline {
                 echo 'Stopping previous Flask server if exists...'
                 bat """
                 if exist ${PID_FILE} (
-                    for /F %%i in (${PID_FILE}) do (
-                        tasklist /FI "PID eq %%i" | find "%%i" >nul && taskkill /PID %%i /F || echo "Process %%i not running, skipping"
+                    for /F %i in (${PID_FILE}) do (
+                        tasklist /FI "PID eq %i" | find "%i" >nul && taskkill /PID %i /F || echo "Process %i not running, skipping"
                     )
                     del ${PID_FILE}
                 )
@@ -47,15 +47,10 @@ pipeline {
 
         stage('Deploy Flask App') {
             steps {
-                echo 'Starting Flask server...'
-                // Создаем небольшой скрипт для запуска Flask и сохранения PID
+                echo 'Deploying Flask server in background...'
                 bat """
                 cd ${APP_DIR}
-                echo import os, subprocess > start_flask.py
-                echo p = subprocess.Popen(['${PYTHON}', '-m', 'flask', 'run', '--host=0.0.0.0', '--port=${FLASK_PORT}']) >> start_flask.py
-                echo with open('${PID_FILE}', 'w') as f: f.write(str(p.pid)) >> start_flask.py
-                echo print('Flask started with PID', p.pid) >> start_flask.py
-                "${PYTHON}" start_flask.py
+                start /B "" ${PYTHON} -m flask run --host=0.0.0.0 --port=${FLASK_PORT} > flask.log 2>&1
                 """
             }
         }
