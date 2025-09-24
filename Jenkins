@@ -4,6 +4,7 @@ pipeline {
     environment {
         PYTHON_PATH = 'C:\\Users\\geras\\AppData\\Local\\Programs\\Python\\Python312\\python.exe'
         VENV_DIR = "venv"
+        HOST_IP = '192.168.0.106' // замените на IP вашего ноутбука
     }
 
     options {
@@ -21,10 +22,10 @@ pipeline {
             steps {
                 echo "Running flake8..."
                 bat """
-                   "%PYTHON_PATH%" -m venv %VENV_DIR%
-                   call %VENV_DIR%\\Scripts\\activate && "%PYTHON_PATH%" -m pip install --upgrade pip
-                   call %VENV_DIR%\\Scripts\\activate && "%PYTHON_PATH%" -m pip install flake8
-                   call %VENV_DIR%\\Scripts\\activate && "%PYTHON_PATH%" -m flake8 app.py test_app.py || exit 0
+                    "%PYTHON_PATH%" -m venv %VENV_DIR%
+                    call %VENV_DIR%\\Scripts\\activate && "%PYTHON_PATH%" -m pip install --upgrade pip
+                    call %VENV_DIR%\\Scripts\\activate && "%PYTHON_PATH%" -m pip install flake8
+                    call %VENV_DIR%\\Scripts\\activate && "%PYTHON_PATH%" -m flake8 app.py test_app.py || exit 0
                 """
             }
         }
@@ -33,10 +34,10 @@ pipeline {
             steps {
                 echo "Running pytest..."
                 bat """
-                   call %VENV_DIR%\\Scripts\\activate
-                   "%PYTHON_PATH%" -m pip install flask pytest
-                   if not exist reports mkdir reports
-                   "%PYTHON_PATH%" -m pytest --junitxml=reports\\junit.xml
+                    call %VENV_DIR%\\Scripts\\activate
+                    "%PYTHON_PATH%" -m pip install flask pytest
+                    if not exist reports mkdir reports
+                    "%PYTHON_PATH%" -m pytest --junitxml=reports\\junit.xml
                 """
             }
             post {
@@ -50,30 +51,30 @@ pipeline {
             steps {
                 echo "Deploying Flask app..."
                 bat """
-                call venv\\Scripts\\activate
-                REM Устанавливаем зависимости
-                pip install -r requirements.txt
-                REM Убиваем старый процесс Flask (если есть)
-                for /f "tokens=5" %%a in ('netstat -ano ^| findstr :5000') do taskkill /F /PID %%a
-                REM Запускаем Flask в фоне на 0.0.0.0:5000
-                start "" /B cmd /c "call venv\\Scripts\\activate && python app.py"
-                REM Ждём 10 секунд, чтобы сервер успел подняться
-                timeout /T 10 /NOBREAK >nul
-                """
-            }
-        }
-        
-        stage('Acceptance Tests') {
-            steps {
-                echo "Checking if Flask app is up..."
-                bat """
-                REM Используем локальный IP ноутбука, замените на свой
-                set HOST_IP=192.168.0.106
-                curl http://%HOST_IP%:5000/ || exit 1
+                    call %VENV_DIR%\\Scripts\\activate
+                    pip install -r requirements.txt
+
+                    REM Убиваем старый процесс Flask (если есть)
+                    for /f "tokens=5" %%a in ('netstat -ano ^| findstr :5000') do taskkill /F /PID %%a
+
+                    REM Запускаем Flask на 0.0.0.0:5000 в фоне
+                    start "" /B cmd /c "call %VENV_DIR%\\Scripts\\activate && python app.py"
+                    
+                    REM Ждём 10 секунд, чтобы сервер успел подняться
+                    timeout /T 10 /NOBREAK >nul
                 """
             }
         }
 
+        stage('Acceptance Tests') {
+            steps {
+                echo "Checking if Flask app is up..."
+                bat """
+                    curl http://%HOST_IP%:5000/ || exit 1
+                """
+            }
+        }
+    }
 
     post {
         success {
