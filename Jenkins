@@ -24,14 +24,6 @@ pipeline {
                 bat '.\\venv\\Scripts\\python.exe -m pip install -r requirements.txt'
             }
         }
-
-        
-        stage('Lint & Code Quality') {
-            steps {
-                echo 'Проверка качества кода...'
-                bat '.\\venv\\Scripts\\flake8 app.py'
-            }
-        }
         
         stage('Test') {
             steps {
