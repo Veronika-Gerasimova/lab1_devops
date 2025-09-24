@@ -9,7 +9,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'dev', url: 'https://github.com/<username>/flask-ci-cd-demo.git'
+                git branch: 'dev', url: 'https://github.com/Veronika-Gerasimova/lab1_devops.git'
             }
         }
 
