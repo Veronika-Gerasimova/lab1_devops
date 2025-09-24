@@ -36,8 +36,8 @@ pipeline {
                 echo 'Stopping previous Flask server if exists...'
                 bat """
                 if exist "${PID_FILE}" (
-                    for /F %i in (${PID_FILE}) do (
-                        tasklist /FI "PID eq %i" | find "%i" >nul && taskkill /PID %i /F || echo Process %i not running, skipping
+                    for /F %%i in (${PID_FILE}) do (
+                        tasklist /FI "PID eq %%i" | find "%%i" >nul && taskkill /PID %%i /F || echo Process %%i not running, skipping
                     )
                     del "${PID_FILE}"
                 )
@@ -51,7 +51,6 @@ pipeline {
                 bat """
                 cd ${APP_DIR}
                 start /B "" ${PYTHON} -m flask run --host=0.0.0.0 --port=${FLASK_PORT} > flask.log 2>&1
-                echo %ERRORLEVEL% > "${PID_FILE}"
                 """
             }
         }
