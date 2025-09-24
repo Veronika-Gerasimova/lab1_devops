@@ -47,43 +47,33 @@ pipeline {
         }
 
         stage('Rebuild / Deploy') {
-            when {
-                branch 'main'
-            }
             steps {
                 echo "Deploying Flask app..."
                 bat """
-                   call %VENV_DIR%\\Scripts\\activate
-        
-                   REM Устанавливаем зависимости
-                   "%PYTHON_PATH%" -m pip install -r requirements.txt || "%PYTHON_PATH%" -m pip install flask pytest
-        
-                   REM Убиваем старый Flask, если он запущен
-                   for /F "tokens=5" %%i in ('netstat -ano ^| findstr :5000') do taskkill /F /PID %%i || exit 0
-        
-                   REM Запускаем Flask на всех интерфейсах (0.0.0.0)
-                   start "" /B cmd /c "call %VENV_DIR%\\Scripts\\activate && flask run --host=0.0.0.0 --port=5000 > flask.log 2>&1"
-        
-                   REM Ждём 10 секунд, чтобы Flask успел стартовать
-                   timeout /T 10 >nul
+                call venv\\Scripts\\activate
+                REM Устанавливаем зависимости
+                pip install -r requirements.txt
+                REM Убиваем старый процесс Flask (если есть)
+                for /f "tokens=5" %%a in ('netstat -ano ^| findstr :5000') do taskkill /F /PID %%a
+                REM Запускаем Flask в фоне на 0.0.0.0:5000
+                start "" /B cmd /c "call venv\\Scripts\\activate && python app.py"
+                REM Ждём 10 секунд, чтобы сервер успел подняться
+                timeout /T 10 /NOBREAK >nul
                 """
             }
         }
-
-
+        
         stage('Acceptance Tests') {
-            when {
-                branch 'main'
-            }
             steps {
                 echo "Checking if Flask app is up..."
                 bat """
-                   timeout /T 10 >nul
-                   curl http://127.0.0.1:5000/ || exit 1
+                REM Используем локальный IP ноутбука, замените на свой
+                set HOST_IP=192.168.0.106
+                curl http://%HOST_IP%:5000/ || exit 1
                 """
             }
         }
-    }
+
 
     post {
         success {
