@@ -1,62 +1,97 @@
 pipeline {
     agent any
-
+    
     environment {
         PYTHON = "C:\\Users\\geras\\AppData\\Local\\Programs\\Python\\Python312\\python.exe"
         VENV = "${WORKSPACE}\\venv"
+        APP_NAME = 'lab1_devops'
     }
-
+    
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'dev', url: 'https://github.com/Veronika-Gerasimova/lab1_devops.git'
+                echo 'Получение кода из репозитория...'
+                checkout scm
             }
         }
-
-        stage('Quality Test') {
+        
+        stage('Create Virtual Environment & Install Dependencies') {
             steps {
+                echo 'Создание виртуального окружения и установка зависимостей...'
                 bat '"%PYTHON%" -m venv "%VENV%"'
                 bat 'call "%VENV%\\Scripts\\activate" && pip install -r requirements.txt'
-                // Игнорируем flake8 ошибки стиля, чтобы pipeline не падал
+            }
+        }
+        
+        stage('Lint & Code Quality') {
+            steps {
+                echo 'Проверка качества кода (flake8)...'
+                // Игнорируем ошибки стиля, чтобы pipeline продолжал выполнение
                 bat 'call "%VENV%\\Scripts\\activate" && flake8 app.py test_app.py || echo "flake8 warnings"'
             }
         }
-
+        
         stage('Unit Test') {
             steps {
+                echo 'Запуск юнит-тестов (pytest)...'
                 bat 'call "%VENV%\\Scripts\\activate" && pytest test_app.py'
             }
+            post {
+                always {
+                    echo 'Тесты завершены. Отчеты доступны в консоли.'
+                }
+            }
         }
-
+        
         stage('Security Test') {
             steps {
+                echo 'Проверка безопасности (Bandit)...'
                 bat 'call "%VENV%\\Scripts\\activate" && bandit -r app.py || echo "Bandit warnings"'
             }
         }
-
+        
         stage('Build') {
             steps {
-                echo 'Build stage - для Flask сборка не требуется'
+                echo 'Сборка приложения (для Flask сборка не требуется)...'
             }
         }
-
-        stage('Push') {
-            steps {
-                echo 'Push stage - можно пушить Docker image или уведомление'
+        
+        stage('Deploy to Dev') {
+            when {
+                branch 'dev'
             }
-        }
-
-        stage('Deploy') {
             steps {
+                echo 'Деплой в dev окружение...'
+                bat 'taskkill /F /IM python.exe 2>nul || echo "Нет запущенных процессов Python"'
                 bat 'start cmd /c "call "%VENV%\\Scripts\\activate" && python app.py"'
-                echo 'Deploy stage - Flask приложение запущено'
+                bat 'timeout /t 3 /nobreak >nul'
+                bat 'echo "Приложение Flask запущено на dev!"'
+            }
+        }
+        
+        stage('Deploy to Production') {
+            when {
+                branch 'main'
+            }
+            steps {
+                echo 'Деплой в prod окружение...'
+                bat 'taskkill /F /IM python.exe 2>nul || echo "Нет запущенных процессов Python"'
+                bat 'start cmd /c "call "%VENV%\\Scripts\\activate" && python app.py"'
+                bat 'timeout /t 3 /nobreak >nul'
+                bat 'echo "Приложение Flask запущено на prod!"'
             }
         }
     }
-
+    
     post {
         always {
-            echo 'Pipeline finished'
+            echo 'Pipeline завершен'
+        }
+        success {
+            echo 'Pipeline выполнен успешно!'
+        }
+        failure {
+            echo 'Pipeline завершился с ошибкой!'
         }
     }
 }
