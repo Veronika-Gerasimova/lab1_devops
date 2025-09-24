@@ -60,8 +60,9 @@ pipeline {
                        del flask.pid
                    )
 
-                   start /B "%PYTHON_PATH%" app.py > flask.log 2>&1
-                   echo %PROCESS_ID% > flask.pid
+                    start "" /B "%PYTHON_PATH%" -m flask run --host=127.0.0.1 --port=5000 > flask.log 2>&1
+                    echo !ERRORLEVEL! > flask.pid
+
                 """
             }
         }
