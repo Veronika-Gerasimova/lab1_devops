@@ -2,8 +2,8 @@ pipeline {
     agent any
 
     environment {
-        PY_BIN = "python"       
-        VENV_DIR = "venv"       
+        PYTHON_PATH = 'C:\\Users\\geras\\AppData\\Local\\Programs\\Python\\Python312\\python.exe'
+        VENV_DIR = "venv"
     }
 
     options {
@@ -13,20 +13,18 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                echo "Checkout branch: ${env.BRANCH_NAME}"
                 checkout scm
             }
         }
 
         stage('Quality Test') {
             steps {
-                echo "Running quality checks..."
+                echo "Running flake8..."
                 bat """
-                   %PY_BIN% -m venv %VENV_DIR%
-                   call %VENV_DIR%\\Scripts\\activate
-                   pip install --upgrade pip
-                   pip install flake8
-                   flake8 app.py test_app.py || exit 0
+                   "%PYTHON_PATH%" -m venv %VENV_DIR%
+                   call %VENV_DIR%\\Scripts\\activate && "%PYTHON_PATH%" -m pip install --upgrade pip
+                   call %VENV_DIR%\\Scripts\\activate && "%PYTHON_PATH%" -m pip install flake8
+                   call %VENV_DIR%\\Scripts\\activate && flake8 app.py test_app.py || exit 0
                 """
             }
         }
@@ -35,10 +33,9 @@ pipeline {
             steps {
                 echo "Running pytest..."
                 bat """
-                   call %VENV_DIR%\\Scripts\\activate
-                   pip install flask pytest
+                   call %VENV_DIR%\\Scripts\\activate && "%PYTHON_PATH%" -m pip install flask pytest
                    if not exist reports mkdir reports
-                   pytest --junitxml=reports\\junit.xml
+                   call %VENV_DIR%\\Scripts\\activate && pytest --junitxml=reports\\junit.xml
                 """
             }
             post {
@@ -55,17 +52,15 @@ pipeline {
             steps {
                 echo "Deploying Flask app..."
                 bat """
-                   call %VENV_DIR%\\Scripts\\activate
-                   echo Installing dependencies...
-                   pip install -r requirements.txt || pip install flask pytest
+                   call %VENV_DIR%\\Scripts\\activate && "%PYTHON_PATH%" -m pip install -r requirements.txt || "%PYTHON_PATH%" -m pip install flask pytest
 
-                   echo Restarting application...
+                   echo Restarting Flask app...
                    if exist flask.pid (
                        for /F %%i in (flask.pid) do taskkill /F /PID %%i || exit 0
                        del flask.pid
                    )
 
-                   start /B %PY_BIN% app.py > flask.log 2>&1
+                   start /B "%PYTHON_PATH%" app.py > flask.log 2>&1
                    echo %PROCESS_ID% > flask.pid
                 """
             }
