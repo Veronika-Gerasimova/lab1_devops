@@ -5,7 +5,7 @@ pipeline {
         PYTHON = 'C:/Users/geras/AppData/Local/Programs/Python/Python312/python.exe'
         PROJECT_DIR = 'C:/devops'
         PID_FILE = "${PROJECT_DIR}/flask.pid"
-        NGROK_PATH = 'C:/devops/ngrok.exe' // путь к ngrok
+        FLASK_APP = 'app.py'
     }
 
     options {
@@ -50,27 +50,13 @@ pipeline {
             }
         }
 
-        stage('Deploy Flask via ngrok') {
+        stage('Deploy Flask App') {
             steps {
-                echo 'Starting Flask server with ngrok...'
+                echo 'Starting Flask server...'
                 bat """
                 cd ${PROJECT_DIR}
-                REM Запускаем Flask
-                start "" /B "${env.PYTHON}" app.py
-                REM Ждем 2 секунды, чтобы Flask успел стартовать
-                timeout /t 2
-                REM Запускаем ngrok на порт 5000 и сохраняем публичный URL в файл
-                start "" /B "${NGROK_PATH}" http 5000 --log=stdout > ngrok.log
-                """
-            }
-        }
-
-        stage('Show ngrok URL') {
-            steps {
-                echo 'Getting ngrok public URL...'
-                bat """
-                REM Берем первый публичный URL из лог-файла ngrok
-                for /F "tokens=2 delims= " %%a in ('findstr /R "https://.*.ngrok.io" ngrok.log') do echo Public URL: %%a
+                set FLASK_APP=${env.FLASK_APP}
+                start "" /B "${env.PYTHON}" -m flask run --host=0.0.0.0 --port=5000
                 """
             }
         }
@@ -81,7 +67,7 @@ pipeline {
             echo 'Pipeline finished'
         }
         success {
-            echo 'Flask server deployed via ngrok!'
+            echo 'Tests passed and Flask server deployed!'
         }
         failure {
             echo 'Pipeline failed!'
