@@ -2,6 +2,7 @@ pipeline {
     agent any
 
     environment {
+        PYTHON = "C:\\Users\\geras\\AppData\\Local\\Programs\\Python\\Python312\\python.exe"
         VENV = "${WORKSPACE}\\venv"
     }
 
@@ -14,21 +15,21 @@ pipeline {
 
         stage('Quality Test') {
             steps {
-                bat 'python -m venv "%VENV%"'
-                bat '"%VENV%\\Scripts\\activate" && pip install -r requirements.txt'
-                bat '"%VENV%\\Scripts\\activate" && flake8 app.py test_app.py'
+                bat '"%PYTHON%" -m venv "%VENV%"'
+                bat 'call "%VENV%\\Scripts\\activate" && pip install -r requirements.txt'
+                bat 'call "%VENV%\\Scripts\\activate" && flake8 app.py test_app.py'
             }
         }
 
         stage('Unit Test') {
             steps {
-                bat '"%VENV%\\Scripts\\activate" && pytest test_app.py'
+                bat 'call "%VENV%\\Scripts\\activate" && pytest test_app.py'
             }
         }
 
         stage('Security Test') {
             steps {
-                bat '"%VENV%\\Scripts\\activate" && bandit -r app.py'
+                bat 'call "%VENV%\\Scripts\\activate" && bandit -r app.py'
             }
         }
 
@@ -46,7 +47,7 @@ pipeline {
 
         stage('Deploy') {
             steps {
-                bat 'start cmd /c "%VENV%\\Scripts\\activate && python app.py"'
+                bat 'start cmd /c "call "%VENV%\\Scripts\\activate" && python app.py"'
                 echo 'Deploy stage - приложение запущено'
             }
         }
