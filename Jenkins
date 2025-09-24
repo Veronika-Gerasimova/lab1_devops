@@ -45,6 +45,7 @@ pipeline {
             }
         }
 
+       
         stage('Rebuild / Deploy') {
             when {
                 branch 'main'
@@ -52,17 +53,14 @@ pipeline {
             steps {
                 echo "Deploying Flask app..."
                 bat """
-                   call %VENV_DIR%\\Scripts\\activate && "%PYTHON_PATH%" -m pip install -r requirements.txt || "%PYTHON_PATH%" -m pip install flask pytest
+                   call %VENV_DIR%\\Scripts\\activate
+                   "%PYTHON_PATH%" -m pip install -r requirements.txt || "%PYTHON_PATH%" -m pip install flask pytest
 
-                   echo Restarting Flask app...
-                   if exist flask.pid (
-                       for /F %%i in (flask.pid) do taskkill /F /PID %%i || exit 0
-                       del flask.pid
-                   )
+                   echo Killing old Flask if running...
+                   for /F "tokens=5" %%i in ('netstat -ano ^| findstr :5000') do taskkill /F /PID %%i || exit 0
 
-                    start "" /B "%PYTHON_PATH%" -m flask run --host=127.0.0.1 --port=5000 > flask.log 2>&1
-                    echo !ERRORLEVEL! > flask.pid
-
+                   echo Starting Flask app...
+                   start "" /B cmd /c "call %VENV_DIR%\\Scripts\\activate && flask run --host=127.0.0.1 --port=5000 > flask.log 2>&1"
                 """
             }
         }
@@ -74,12 +72,12 @@ pipeline {
             steps {
                 echo "Checking if Flask app is up..."
                 bat """
-                   timeout /T 5 >nul
-                   curl http://127.0.0.1:5000/ || exit 0
+                   timeout /T 10 >nul
+                   curl http://127.0.0.1:5000/ || exit 1
                 """
             }
         }
-    }
+
 
     post {
         success {
