@@ -46,14 +46,10 @@ pipeline {
         }
 
         stage('Deploy Flask App') {
-            steps {
-                echo 'Deploying Flask server in background...'
-                bat """
-                cd ${APP_DIR}
-                start /B "" ${PYTHON} -m flask run --host=0.0.0.0 --port=${FLASK_PORT} > flask.log 2>&1
-                """
-            }
+            echo 'Deploying Flask server in background...'
+            bat 'C:/devops/run_flask.bat'
         }
+
     }
 
     post {
