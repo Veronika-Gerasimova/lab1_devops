@@ -20,10 +20,11 @@ pipeline {
             steps {
                 echo 'Создание виртуального окружения и установка зависимостей...'
                 bat '%PYTHON_EXE% -m venv venv'
-                bat '.\\venv\\Scripts\\pip install --upgrade pip'
-                bat '.\\venv\\Scripts\\pip install -r requirements.txt'
+                bat '.\\venv\\Scripts\\python.exe -m pip install --upgrade pip'
+                bat '.\\venv\\Scripts\\python.exe -m pip install -r requirements.txt'
             }
         }
+
         
         stage('Lint & Code Quality') {
             steps {
