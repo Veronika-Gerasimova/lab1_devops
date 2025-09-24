@@ -60,7 +60,7 @@ pipeline {
                    for /F "tokens=5" %%i in ('netstat -ano ^| findstr :5000') do taskkill /F /PID %%i || exit 0
 
                    echo Starting Flask app...
-                   start "" /B cmd /c "call %VENV_DIR%\\Scripts\\activate && flask run --host=127.0.0.1 --port=5000 > flask.log 2>&1"
+                   start "" /B cmd /c "call %VENV_DIR%\Scripts\activate && flask run --host=0.0.0.0 --port=5000 > flask.log 2>&1"
                 """
             }
         }
