@@ -3,47 +3,42 @@ pipeline {
 
     environment {
         PYTHON = 'C:/Users/geras/AppData/Local/Programs/Python/Python312/python.exe'
-        PROJECT_DIR = 'C:/devops'
-        PID_FILE = "${PROJECT_DIR}/flask.pid"
-        FLASK_APP = 'app.py'
-    }
-
-    options {
-        skipDefaultCheckout()
+        APP_DIR = 'C:/devops'
+        FLASK_PORT = '5000'
+        PID_FILE = "${APP_DIR}/flask.pid"
     }
 
     stages {
-
         stage('Checkout SCM') {
             steps {
                 echo 'Cloning repository...'
-                git branch: 'main',
-                    url: 'https://github.com/Veronika-Gerasimova/lab1_devops.git',
-                    credentialsId: 'github-token'
+                git url: 'https://github.com/Veronika-Gerasimova/lab1_devops.git', branch: 'main', credentialsId: 'github-token'
             }
         }
 
         stage('Install dependencies') {
             steps {
                 echo 'Installing Python dependencies...'
-                bat "\"${env.PYTHON}\" -m pip install --upgrade pip"
-                bat "\"${env.PYTHON}\" -m pip install -r ${PROJECT_DIR}/requirements.txt"
+                bat "\"${PYTHON}\" -m pip install --upgrade pip"
+                bat "\"${PYTHON}\" -m pip install -r ${APP_DIR}/requirements.txt"
             }
         }
 
         stage('Run tests') {
             steps {
                 echo 'Running pytest...'
-                bat "\"${env.PYTHON}\" -m pytest -v ${PROJECT_DIR}"
+                bat "\"${PYTHON}\" -m pytest -v ${APP_DIR}"
             }
         }
 
-        stage('Stop old server') {
+        stage('Stop old Flask server') {
             steps {
                 echo 'Stopping previous Flask server if exists...'
                 bat """
                 if exist ${PID_FILE} (
-                    for /F %%i in (${PID_FILE}) do taskkill /PID %%i /F
+                    for /F %%i in (${PID_FILE}) do (
+                        tasklist /FI "PID eq %%i" | find "%%i" >nul && taskkill /PID %%i /F || echo "Process %%i not running, skipping"
+                    )
                     del ${PID_FILE}
                 )
                 """
@@ -53,10 +48,14 @@ pipeline {
         stage('Deploy Flask App') {
             steps {
                 echo 'Starting Flask server...'
+                // Создаем небольшой скрипт для запуска Flask и сохранения PID
                 bat """
-                cd ${PROJECT_DIR}
-                set FLASK_APP=${env.FLASK_APP}
-                start "" /B "${env.PYTHON}" -m flask run --host=0.0.0.0 --port=5000
+                cd ${APP_DIR}
+                echo import os, subprocess > start_flask.py
+                echo p = subprocess.Popen(['${PYTHON}', '-m', 'flask', 'run', '--host=0.0.0.0', '--port=${FLASK_PORT}']) >> start_flask.py
+                echo with open('${PID_FILE}', 'w') as f: f.write(str(p.pid)) >> start_flask.py
+                echo print('Flask started with PID', p.pid) >> start_flask.py
+                "${PYTHON}" start_flask.py
                 """
             }
         }
@@ -65,12 +64,6 @@ pipeline {
     post {
         always {
             echo 'Pipeline finished'
-        }
-        success {
-            echo 'Tests passed and Flask server deployed!'
-        }
-        failure {
-            echo 'Pipeline failed!'
         }
     }
 }
