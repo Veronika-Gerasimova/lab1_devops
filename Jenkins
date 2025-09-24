@@ -24,7 +24,7 @@ pipeline {
                    "%PYTHON_PATH%" -m venv %VENV_DIR%
                    call %VENV_DIR%\\Scripts\\activate && "%PYTHON_PATH%" -m pip install --upgrade pip
                    call %VENV_DIR%\\Scripts\\activate && "%PYTHON_PATH%" -m pip install flake8
-                   call %VENV_DIR%\\Scripts\\activate && flake8 app.py test_app.py || exit 0
+                   call %VENV_DIR%\\Scripts\\activate && "%PYTHON_PATH%" -m flake8 app.py test_app.py || exit 0
                 """
             }
         }
