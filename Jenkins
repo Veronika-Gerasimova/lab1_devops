@@ -7,7 +7,6 @@ pipeline {
     }
 
     options {
-        ansiColor('xterm')
         timestamps()
     }
 
@@ -55,18 +54,15 @@ pipeline {
             }
             steps {
                 echo "Deploying Flask app..."
-                // Здесь имитация пересборки проекта и перезапуска
                 sh """
                    . ${VENV_DIR}/bin/activate
                    echo "Installing dependencies..."
                    pip install -r requirements.txt || pip install flask pytest
                    echo "Restarting application..."
-                   # Завершаем старый процесс, если он был
                    if [ -f flask.pid ]; then
                       kill -9 \$(cat flask.pid) || true
                       rm flask.pid
                    fi
-                   # Запускаем новый процесс
                    nohup ${PY_BIN} app.py > flask.log 2>&1 &
                    echo \$! > flask.pid
                 """
