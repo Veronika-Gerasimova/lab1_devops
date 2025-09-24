@@ -1,46 +1,49 @@
 pipeline {
     agent any
 
-    options {
-        // запрещаем параллельные сборки одной и той же Job
-        disableConcurrentBuilds()
+    environment {
+        PYTHON = 'C:/Users/geras/AppData/Local/Programs/Python/Python312/python.exe'
+        PROJECT_DIR = 'C:/devops'
+        PID_FILE = "${PROJECT_DIR}/flask.pid"
     }
 
-    environment {
-        PYTHON = "C:/Users/geras/AppData/Local/Programs/Python/Python312/python.exe"
-        PROJECT_DIR = "C:/devops"
-        PORT = "5000"
+    options {
+        skipDefaultCheckout()
     }
 
     stages {
-        stage('Checkout') {
+
+        stage('Checkout SCM') {
             steps {
                 echo 'Cloning repository...'
-                git branch: 'main', url: 'https://github.com/Veronika-Gerasimova/lab1_devops.git'
+                git branch: 'main',
+                    url: 'https://github.com/Veronika-Gerasimova/lab1_devops.git',
+                    credentialsId: 'github-token'
             }
         }
 
         stage('Install dependencies') {
             steps {
                 echo 'Installing Python dependencies...'
-                bat "${env.PYTHON} -m pip install --upgrade pip"
-                bat "${env.PYTHON} -m pip install -r ${env.PROJECT_DIR}/requirements.txt"
+                bat "\"${env.PYTHON}\" -m pip install --upgrade pip"
+                bat "\"${env.PYTHON}\" -m pip install -r ${PROJECT_DIR}/requirements.txt"
             }
         }
 
         stage('Run tests') {
             steps {
                 echo 'Running pytest...'
-                bat "${env.PYTHON} -m pytest -v ${env.PROJECT_DIR}"
+                bat "\"${env.PYTHON}\" -m pytest -v ${PROJECT_DIR}"
             }
         }
 
         stage('Stop old server') {
             steps {
-                echo 'Checking for existing Flask server on port 5000...'
+                echo 'Stopping previous Flask server if exists...'
                 bat """
-                for /f "tokens=5" %%a in ('netstat -ano ^| findstr :${env.PORT}') do (
-                    taskkill /PID %%a /F
+                if exist ${PID_FILE} (
+                    for /F %%i in (${PID_FILE}) do taskkill /PID %%i /F
+                    del ${PID_FILE}
                 )
                 """
             }
@@ -49,7 +52,10 @@ pipeline {
         stage('Deploy Flask App') {
             steps {
                 echo 'Starting Flask server...'
-                bat "start cmd /k \"${env.PYTHON} ${env.PROJECT_DIR}/app.py\""
+                bat """
+                cd ${PROJECT_DIR}
+                start "" /B "${env.PYTHON}" app.py
+                """
             }
         }
     }
@@ -59,10 +65,10 @@ pipeline {
             echo 'Pipeline finished'
         }
         success {
-            echo '✅ Tests passed and Flask server deployed!'
+            echo 'Tests passed and Flask server deployed!'
         }
         failure {
-            echo '❌ Pipeline failed!'
+            echo 'Pipeline failed!'
         }
     }
 }
