@@ -3,13 +3,7 @@ pipeline {
 
     environment {
         PY_BIN = "python3"
-        DOCKER_REGISTRY = "docker.io"                    // адрес реестра
-        IMAGE_NAME = "veronika-gerasimova/lab1_devops"   // имя образа
-        REGISTRY_CREDENTIALS = "dockerhub-creds"         // ID credentials в Jenkins
-    }
-
-    triggers {
-        githubPush() 
+        VENV_DIR = ".venv"
     }
 
     options {
@@ -27,10 +21,10 @@ pipeline {
 
         stage('Quality Test') {
             steps {
-                echo "Running quality checks (flake8)..."
+                echo "Running quality checks..."
                 sh """
-                   ${PY_BIN} -m venv venv
-                   . venv/bin/activate
+                   ${PY_BIN} -m venv ${VENV_DIR}
+                   . ${VENV_DIR}/bin/activate
                    pip install --upgrade pip
                    pip install flake8
                    flake8 app.py test_app.py || true
@@ -42,8 +36,8 @@ pipeline {
             steps {
                 echo "Running pytest..."
                 sh """
-                   . venv/bin/activate
-                   pip install -r requirements.txt || pip install flask pytest
+                   . ${VENV_DIR}/bin/activate
+                   pip install flask pytest
                    mkdir -p reports
                    pytest --junitxml=reports/junit.xml
                 """
@@ -55,52 +49,27 @@ pipeline {
             }
         }
 
-        stage('Security Test') {
-            steps {
-                echo "Running security checks (bandit)..."
-                sh """
-                   . venv/bin/activate
-                   pip install bandit
-                   bandit -r . || true
-                """
-            }
-        }
-
-        stage('Build') {
-            when {
-                anyOf { branch 'dev'; branch 'main' }
-            }
-            steps {
-                echo "Building Docker image..."
-                script {
-                    def tag = (env.BRANCH_NAME == 'dev') ? 'dev' : 'latest'
-                    sh "docker build -t ${DOCKER_REGISTRY}/${IMAGE_NAME}:${tag} ."
-                }
-            }
-        }
-
-        stage('Push') {
-            when {
-                anyOf { branch 'dev'; branch 'main' }
-            }
-            steps {
-                script {
-                    def tag = (env.BRANCH_NAME == 'dev') ? 'dev' : 'latest'
-                    docker.withRegistry("https://${DOCKER_REGISTRY}", REGISTRY_CREDENTIALS) {
-                        sh "docker push ${DOCKER_REGISTRY}/${IMAGE_NAME}:${tag}"
-                    }
-                }
-            }
-        }
-
-        stage('Deploy') {
+        stage('Rebuild / Deploy') {
             when {
                 branch 'main'
             }
             steps {
-                echo "Deploying to production..."
-                // Здесь добавьте реальные команды (ssh, ansible, kubectl и т.д.)
-                sh 'echo "Simulated deploy step"'
+                echo "Deploying Flask app..."
+                // Здесь имитация пересборки проекта и перезапуска
+                sh """
+                   . ${VENV_DIR}/bin/activate
+                   echo "Installing dependencies..."
+                   pip install -r requirements.txt || pip install flask pytest
+                   echo "Restarting application..."
+                   # Завершаем старый процесс, если он был
+                   if [ -f flask.pid ]; then
+                      kill -9 \$(cat flask.pid) || true
+                      rm flask.pid
+                   fi
+                   # Запускаем новый процесс
+                   nohup ${PY_BIN} app.py > flask.log 2>&1 &
+                   echo \$! > flask.pid
+                """
             }
         }
 
@@ -109,18 +78,18 @@ pipeline {
                 branch 'main'
             }
             steps {
-                echo "Running acceptance (smoke) tests..."
-                sh 'curl -s http://localhost:5000/ || true'
+                echo "Checking if Flask app is up..."
+                sh 'sleep 5 && curl -s http://127.0.0.1:5000/ || true'
             }
         }
     }
 
     post {
         success {
-            echo "Pipeline finished SUCCESS"
+            echo "✅ Pipeline finished SUCCESS"
         }
         failure {
-            echo "Pipeline FAILED"
+            echo "❌ Pipeline FAILED"
         }
     }
 }
