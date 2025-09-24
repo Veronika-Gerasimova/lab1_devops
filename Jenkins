@@ -2,9 +2,8 @@ pipeline {
     agent any
 
     environment {
-        VENV = "${WORKSPACE}\\venv"
-        PYTHON = "${WORKSPACE}\\venv\\Scripts\\python.exe"
-        PIP = "${WORKSPACE}\\venv\\Scripts\\pip.exe"
+        VENV_DIR = "${WORKSPACE}\\venv"
+        FLASK_APP = "app.py"
     }
 
     stages {
@@ -16,40 +15,44 @@ pipeline {
 
         stage('Setup Python') {
             steps {
-                // Создаем виртуальное окружение
-                bat "python -m venv venv"
-                // Обновляем pip
-                bat "\"${PIP}\" install --upgrade pip"
-                // Устанавливаем зависимости
-                bat "\"${PIP}\" install -r requirements.txt"
+                bat """
+                python -m venv %VENV_DIR%
+                call %VENV_DIR%\\Scripts\\activate
+                pip install --upgrade pip
+                pip install -r requirements.txt
+                """
             }
         }
 
         stage('Run Tests') {
             steps {
-                // Запуск тестов через pytest
-                bat "\"${PYTHON}\" -m pytest -v"
+                bat """
+                call %VENV_DIR%\\Scripts\\activate
+                pytest test_app.py --maxfail=1 --disable-warnings
+                """
             }
         }
 
-        stage('Deploy') {
-            when {
-                branch 'main'  // Деплой только из main
-            }
+        stage('Deploy Flask App') {
             steps {
-                echo 'Deploying Flask app...'
-                // Запуск Flask в фоновом режиме через Windows cmd
-                bat "start /B \"FlaskApp\" \"${PYTHON}\" app.py"
+                bat """
+                call %VENV_DIR%\\Scripts\\activate
+                if exist flask.pid (
+                    for /f %%i in (flask.pid) do taskkill /PID %%i /F
+                    del flask.pid
+                )
+                start /B python %FLASK_APP%
+                """
             }
         }
     }
 
     post {
         success {
-            echo 'Pipeline succeeded!'
+            echo 'Build, test, and deploy successful!'
         }
         failure {
-            echo 'Pipeline failed!'
+            echo 'Build or tests failed!'
         }
     }
 }
