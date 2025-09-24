@@ -1,9 +1,14 @@
 pipeline {
     agent any
 
+    options {
+        // Отменяем предыдущие запущенные билды той же ветки
+        cancelPreviousRunningBuilds()
+    }
+
     environment {
         PYTHON = "C:/Users/geras/AppData/Local/Programs/Python/Python312/python.exe"
-        PROJECT_DIR = "C:/devops" // путь к твоему проекту
+        PROJECT_DIR = "C:/devops"
         PORT = "5000"
     }
 
@@ -30,10 +35,20 @@ pipeline {
             }
         }
 
+        stage('Stop old server') {
+            steps {
+                echo 'Checking for existing Flask server on port 5000...'
+                bat """
+                for /f "tokens=5" %%a in ('netstat -ano ^| findstr :${env.PORT}') do (
+                    taskkill /PID %%a /F
+                )
+                """
+            }
+        }
+
         stage('Deploy Flask App') {
             steps {
                 echo 'Starting Flask server...'
-                // Запуск Flask в отдельном терминале, чтобы сервер работал после завершения пайплайна
                 bat "start cmd /k \"${env.PYTHON} ${env.PROJECT_DIR}/app.py\""
             }
         }
@@ -47,7 +62,7 @@ pipeline {
             echo 'Tests passed and Flask server deployed!'
         }
         failure {
-            echo 'Pipeline failed'
+            echo 'Pipeline failed!'
         }
     }
 }
