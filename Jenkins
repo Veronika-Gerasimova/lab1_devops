@@ -45,11 +45,12 @@ pipeline {
             }
         }
 
-        stage('Deploy Flask App') {
-            echo 'Deploying Flask server in background...'
-            bat 'C:/devops/run_flask.bat'
+       stage('Deploy Flask App') {
+            steps {
+                echo 'Deploying Flask server in background...'
+                bat 'C:/devops/run_flask.bat'
+            }
         }
-
     }
 
     post {
