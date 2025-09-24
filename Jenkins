@@ -2,8 +2,8 @@ pipeline {
     agent any
 
     options {
-        // Отменяем предыдущие запущенные билды той же ветки
-        cancelPreviousRunningBuilds()
+        // запрещаем параллельные сборки одной и той же Job
+        disableConcurrentBuilds()
     }
 
     environment {
@@ -59,10 +59,10 @@ pipeline {
             echo 'Pipeline finished'
         }
         success {
-            echo 'Tests passed and Flask server deployed!'
+            echo '✅ Tests passed and Flask server deployed!'
         }
         failure {
-            echo 'Pipeline failed!'
+            echo '❌ Pipeline failed!'
         }
     }
 }
