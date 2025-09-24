@@ -33,9 +33,10 @@ pipeline {
             steps {
                 echo "Running pytest..."
                 bat """
-                   call %VENV_DIR%\\Scripts\\activate && "%PYTHON_PATH%" -m pip install flask pytest
+                   call %VENV_DIR%\\Scripts\\activate
+                   "%PYTHON_PATH%" -m pip install flask pytest
                    if not exist reports mkdir reports
-                   call %VENV_DIR%\\Scripts\\activate && pytest --junitxml=reports\\junit.xml
+                   "%PYTHON_PATH%" -m pytest --junitxml=reports\\junit.xml
                 """
             }
             post {
