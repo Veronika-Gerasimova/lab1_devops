@@ -1,0 +1,53 @@
+pipeline {
+    agent any
+
+    environment {
+        PYTHON = "C:/Users/geras/AppData/Local/Programs/Python/Python312/python.exe"
+        PROJECT_DIR = "C:/devops" // путь к твоему проекту
+        PORT = "5000"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                echo 'Cloning repository...'
+                git branch: 'main', url: 'https://github.com/Veronika-Gerasimova/lab1_devops.git'
+            }
+        }
+
+        stage('Install dependencies') {
+            steps {
+                echo 'Installing Python dependencies...'
+                bat "${env.PYTHON} -m pip install --upgrade pip"
+                bat "${env.PYTHON} -m pip install -r ${env.PROJECT_DIR}/requirements.txt"
+            }
+        }
+
+        stage('Run tests') {
+            steps {
+                echo 'Running pytest...'
+                bat "${env.PYTHON} -m pytest -v ${env.PROJECT_DIR}"
+            }
+        }
+
+        stage('Deploy Flask App') {
+            steps {
+                echo 'Starting Flask server...'
+                // Запуск Flask в отдельном терминале, чтобы сервер работал после завершения пайплайна
+                bat "start cmd /k \"${env.PYTHON} ${env.PROJECT_DIR}/app.py\""
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Pipeline finished'
+        }
+        success {
+            echo 'Tests passed and Flask server deployed!'
+        }
+        failure {
+            echo 'Pipeline failed'
+        }
+    }
+}
