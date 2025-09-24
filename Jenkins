@@ -39,8 +39,8 @@ pipeline {
                 script {
                     bat """
                     if exist "${FLASK_PID}" (
-                        for /F %i in (${FLASK_PID}) do (
-                            tasklist /FI "PID eq %i" | find "%i" 1>nul && taskkill /PID %i /F || echo Process %i not running, skipping
+                        for /F "usebackq tokens=*" %%i in ("${FLASK_PID}") do (
+                            tasklist /FI "PID eq %%i" | find "%%i" >nul && taskkill /PID %%i /F || echo Process %%i not running, skipping
                         )
                         del "${FLASK_PID}"
                     )
@@ -48,6 +48,7 @@ pipeline {
                 }
             }
         }
+
 
         stage('Deploy Flask App') {
             steps {
