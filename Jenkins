@@ -5,7 +5,7 @@ pipeline {
         PYTHON = 'C:/Users/geras/AppData/Local/Programs/Python/Python312/python.exe'
         APP_DIR = 'C:/devops'
         FLASK_PORT = '5000'
-        PID_FILE = "${APP_DIR}/flask.pid"
+        PID_FILE = "${APP_DIR}\\flask.pid"
     }
 
     stages {
@@ -20,14 +20,14 @@ pipeline {
             steps {
                 echo 'Installing Python dependencies...'
                 bat "\"${PYTHON}\" -m pip install --upgrade pip"
-                bat "\"${PYTHON}\" -m pip install -r ${APP_DIR}/requirements.txt"
+                bat "\"${PYTHON}\" -m pip install -r ${APP_DIR}\\requirements.txt"
             }
         }
 
         stage('Run tests') {
             steps {
                 echo 'Running pytest...'
-                bat "\"${PYTHON}\" -m pytest -v ${APP_DIR}\""
+                bat "\"${PYTHON}\" -m pytest -v ${APP_DIR}"
             }
         }
 
@@ -35,11 +35,11 @@ pipeline {
             steps {
                 echo 'Stopping previous Flask server if exists...'
                 bat """
-                if exist ${PID_FILE} (
+                if exist "${PID_FILE}" (
                     for /F %i in (${PID_FILE}) do (
-                        tasklist /FI "PID eq %i" | find "%i" >nul && taskkill /PID %i /F || echo "Process %i not running, skipping"
+                        tasklist /FI "PID eq %i" | find "%i" >nul && taskkill /PID %i /F || echo Process %i not running, skipping
                     )
-                    del ${PID_FILE}
+                    del "${PID_FILE}"
                 )
                 """
             }
@@ -51,6 +51,7 @@ pipeline {
                 bat """
                 cd ${APP_DIR}
                 start /B "" ${PYTHON} -m flask run --host=0.0.0.0 --port=${FLASK_PORT} > flask.log 2>&1
+                echo %ERRORLEVEL% > "${PID_FILE}"
                 """
             }
         }
