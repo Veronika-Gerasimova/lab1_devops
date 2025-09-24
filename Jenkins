@@ -2,8 +2,8 @@ pipeline {
     agent any
 
     environment {
-        PY_BIN = "python3"
-        VENV_DIR = ".venv"
+        PY_BIN = "python"       
+        VENV_DIR = "venv"       
     }
 
     options {
@@ -21,12 +21,12 @@ pipeline {
         stage('Quality Test') {
             steps {
                 echo "Running quality checks..."
-                sh """
-                   ${PY_BIN} -m venv ${VENV_DIR}
-                   . ${VENV_DIR}/bin/activate
+                bat """
+                   %PY_BIN% -m venv %VENV_DIR%
+                   call %VENV_DIR%\\Scripts\\activate
                    pip install --upgrade pip
                    pip install flake8
-                   flake8 app.py test_app.py || true
+                   flake8 app.py test_app.py || exit 0
                 """
             }
         }
@@ -34,11 +34,11 @@ pipeline {
         stage('Unit Test') {
             steps {
                 echo "Running pytest..."
-                sh """
-                   . ${VENV_DIR}/bin/activate
+                bat """
+                   call %VENV_DIR%\\Scripts\\activate
                    pip install flask pytest
-                   mkdir -p reports
-                   pytest --junitxml=reports/junit.xml
+                   if not exist reports mkdir reports
+                   pytest --junitxml=reports\\junit.xml
                 """
             }
             post {
@@ -54,17 +54,19 @@ pipeline {
             }
             steps {
                 echo "Deploying Flask app..."
-                sh """
-                   . ${VENV_DIR}/bin/activate
-                   echo "Installing dependencies..."
+                bat """
+                   call %VENV_DIR%\\Scripts\\activate
+                   echo Installing dependencies...
                    pip install -r requirements.txt || pip install flask pytest
-                   echo "Restarting application..."
-                   if [ -f flask.pid ]; then
-                      kill -9 \$(cat flask.pid) || true
-                      rm flask.pid
-                   fi
-                   nohup ${PY_BIN} app.py > flask.log 2>&1 &
-                   echo \$! > flask.pid
+
+                   echo Restarting application...
+                   if exist flask.pid (
+                       for /F %%i in (flask.pid) do taskkill /F /PID %%i || exit 0
+                       del flask.pid
+                   )
+
+                   start /B %PY_BIN% app.py > flask.log 2>&1
+                   echo %PROCESS_ID% > flask.pid
                 """
             }
         }
@@ -75,7 +77,10 @@ pipeline {
             }
             steps {
                 echo "Checking if Flask app is up..."
-                sh 'sleep 5 && curl -s http://127.0.0.1:5000/ || true'
+                bat """
+                   timeout /T 5 >nul
+                   curl http://127.0.0.1:5000/ || exit 0
+                """
             }
         }
     }
