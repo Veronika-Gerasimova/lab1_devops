@@ -5,32 +5,15 @@ pipeline {
         PYTHON_PATH = 'C:\\Users\\geras\\AppData\\Local\\Programs\\Python\\Python312\\python.exe'
         VENV_DIR = 'venv'
         APP_NAME = 'lab1_devops'
-        APP_PORT = '5000'
+        DEV_PORT = '5001'
+        PROD_PORT = '5000'
     }
 
     stages {
         stage('Checkout') {
             steps {
                 echo 'Получение кода из репозитория...'
-                checkout([$class: 'GitSCM',
-                          branches: [[name: '*/main']],
-                          userRemoteConfigs: [[
-                              url: 'https://github.com/Veronika-Gerasimova/lab1_devops',
-                              credentialsId: 'github-token2'
-                          ]]])
-            }
-        }
-
-        stage('Determine Branch') {
-            steps {
-                script {
-                    // Получаем текущую ветку
-                    env.GIT_BRANCH = bat(
-                        script: 'git rev-parse --abbrev-ref HEAD',
-                        returnStdout: true
-                    ).trim()
-                    echo "Current branch: ${env.GIT_BRANCH}"
-                }
+                checkout scm
             }
         }
 
@@ -55,51 +38,54 @@ pipeline {
             }
         }
 
-        
-    stage('Run Application') {
-        when {
-            expression {
-                // Получаем текущую ветку через git
-                def branch = bat(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
-                echo "Current branch: ${branch}"
-                return branch == 'main'
+        stage('Deploy to Dev') {
+            when {
+                expression {
+                    def branch = bat(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
+                    echo "Current branch: ${branch}"
+                    return branch == 'dev'
+                }
+            }
+            steps {
+                echo 'Деплой в dev окружение...'
+                bat "taskkill /F /IM python.exe 2>nul || echo Нет запущенных процессов"
+                bat "set PYTHONUNBUFFERED=1"
+                bat "start /B .\\%VENV_DIR%\\Scripts\\python.exe app.py --port=%DEV_PORT%"
+                bat "timeout /t 3 /nobreak >nul"
+                bat "curl -s http://localhost:%DEV_PORT%/health || echo 'Приложение еще запускается...'"
+                echo 'Dev deployment completed'
             }
         }
-        steps {
-            echo 'Запуск приложения на Windows...'
-            bat "taskkill /F /IM python.exe 2>nul || echo Нет запущенных процессов"
-            bat "set PYTHONUNBUFFERED=1"
-            bat "start /B .\\%VENV_DIR%\\Scripts\\python.exe app.py"
-            bat "timeout /t 3 /nobreak >nul"
-            bat "curl -s http://localhost:%APP_PORT%/health || echo 'Приложение еще запускается...'"
-            echo 'Приложение запущено!'
+
+        stage('Deploy to Production') {
+            when {
+                expression {
+                    def branch = bat(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
+                    echo "Current branch: ${branch}"
+                    return branch == 'main'
+                }
+            }
+            steps {
+                echo 'Деплой в prod окружение...'
+                bat "taskkill /F /IM python.exe 2>nul || echo Нет запущенных процессов"
+                bat "set PYTHONUNBUFFERED=1"
+                bat "start /B .\\%VENV_DIR%\\Scripts\\python.exe app.py --port=%PROD_PORT%"
+                bat "timeout /t 3 /nobreak >nul"
+                bat "curl -s http://localhost:%PROD_PORT%/health || echo 'Приложение еще запускается...'"
+                echo 'Production deployment completed'
+            }
         }
     }
 
     post {
+        always {
+            echo 'Pipeline завершен'
+        }
         success {
-            echo 'CI/CD pipeline выполнен успешно!'
-            withCredentials([string(credentialsId: 'github-token2', variable: 'TOKEN')]) {
-                bat """
-                    curl -H "Authorization: token %TOKEN%" ^
-                         -H "Accept: application/vnd.github+json" ^
-                         -X POST ^
-                         https://api.github.com/repos/Veronika-Gerasimova/lab1_devops/statuses/%GIT_COMMIT% ^
-                         -d "{\\"state\\":\\"success\\",\\"context\\":\\"Jenkins\\",\\"description\\":\\"Build succeeded\\"}"
-                """
-            }
+            echo 'Pipeline выполнен успешно!'
         }
         failure {
-            echo 'Pipeline завершился с ошибкой! Проверьте логи.'
-            withCredentials([string(credentialsId: 'github-token2', variable: 'TOKEN')]) {
-                bat """
-                    curl -H "Authorization: token %TOKEN%" ^
-                         -H "Accept: application/vnd.github+json" ^
-                         -X POST ^
-                         https://api.github.com/repos/Veronika-Gerasimova/lab1_devops/statuses/%GIT_COMMIT% ^
-                         -d "{\\"state\\":\\"failure\\",\\"context\\":\\"Jenkins\\",\\"description\\":\\"Build failed\\"}"
-                """
-            }
+            echo 'Pipeline завершился с ошибкой!'
         }
     }
 }
