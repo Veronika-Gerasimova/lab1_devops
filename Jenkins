@@ -16,7 +16,7 @@ pipeline {
                           branches: [[name: '*/main']],
                           userRemoteConfigs: [[
                               url: 'https://github.com/Veronika-Gerasimova/lab1_devops',
-                              credentialsId: '01a77dbd-a41f-47e2-9200-01685f486e4a'
+                              credentialsId: 'github-token2'
                           ]]])
             }
         }
