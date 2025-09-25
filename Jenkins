@@ -11,57 +11,86 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
+                echo 'Получение кода из репозитория...'
                 checkout scm
             }
         }
 
-        stage('Install dependencies') {
+        stage('Install Dependencies') {
             steps {
+                echo 'Создание виртуального окружения и установка зависимостей...'
                 bat "\"${env.PYTHON_PATH}\" -m venv %VENV_DIR%"
                 bat ".\\%VENV_DIR%\\Scripts\\python.exe -m pip install --upgrade pip"
                 bat ".\\%VENV_DIR%\\Scripts\\pip.exe install -r requirements.txt"
             }
         }
 
-        stage('Run tests') {
+        stage('Run Tests') {
             steps {
+                echo 'Запуск тестов...'
                 bat ".\\%VENV_DIR%\\Scripts\\pytest.exe -q --disable-warnings --maxfail=1"
+            }
+            post {
+                always {
+                    echo 'Тесты завершены'
+                }
             }
         }
 
-        stage('Build Docker image') {
+        stage('Build Docker Image') {
             when {
                 expression { 
                     return env.BRANCH_NAME == 'main' || env.GIT_BRANCH == 'origin/main'
                 }
             }
             steps {
-                echo "Building Docker image using Windows container..."
+                echo 'Сборка Docker образа для Windows контейнера...'
                 bat "docker build -f Dockerfile.windows -t %APP_NAME% ."
             }
         }
 
-        stage('Deploy') {
+        stage('Deploy to Dev') {
             when {
-                expression { 
-                    return env.BRANCH_NAME == 'main' || env.GIT_BRANCH == 'origin/main'
-                }
+                branch 'dev'
             }
             steps {
-                echo 'Starting deployment...'
-                bat "docker stop %APP_NAME% || exit 0"
-                bat "docker rm %APP_NAME% || exit 0"
+                echo 'Деплой в dev окружение...'
+                bat "docker stop %APP_NAME% || echo 'Нет запущенных контейнеров'"
+                bat "docker rm %APP_NAME% || echo 'Нет контейнеров для удаления'"
                 bat "docker run -d -p %APP_PORT%:5000 --name %APP_NAME% %APP_NAME%"
+                bat "timeout /t 5 /nobreak >nul"
+                bat "echo 'Проверка доступности приложения...'"
+                bat "curl -s http://localhost:%APP_PORT%/health || echo 'Приложение еще запускается...'"
+                bat "echo 'Dev deployment completed'"
+            }
+        }
+
+        stage('Deploy to Production') {
+            when {
+                branch 'main'
+            }
+            steps {
+                echo 'Деплой в prod окружение...'
+                bat "docker stop %APP_NAME% || echo 'Нет запущенных контейнеров'"
+                bat "docker rm %APP_NAME% || echo 'Нет контейнеров для удаления'"
+                bat "docker run -d -p %APP_PORT%:5000 --name %APP_NAME% %APP_NAME%"
+                bat "timeout /t 5 /nobreak >nul"
+                bat "echo 'Проверка доступности приложения...'"
+                bat "curl -s http://localhost:%APP_PORT%/health || echo 'Приложение еще запускается...'"
+                bat "echo 'Production deployment completed'"
             }
         }
     }
 
     post {
+        always {
+            echo 'Pipeline завершен'
+        }
         success {
-            echo 'CI/CD pipeline finished successfully!'
+            echo 'Pipeline выполнен успешно!'
         }
         failure {
-            echo 'Pipeline failed. Check logs!'
+            echo 'Pipeline завершился с ошибкой! Проверьте логи.'
         }
     }
 }
