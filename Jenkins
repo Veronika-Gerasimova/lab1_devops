@@ -31,11 +31,11 @@ pipeline {
 
         stage('Build Docker image') {
             when {
-                anyOf {
-                    branch 'main'
-                    branch 'origin/main'
+                expression { 
+                    return env.BRANCH_NAME == 'main' || env.GIT_BRANCH == 'origin/main'
                 }
             }
+
             steps {
                 bat "docker build -t %APP_NAME% ."
             }
@@ -43,9 +43,8 @@ pipeline {
 
         stage('Deploy') {
             when {
-                anyOf {
-                    branch 'main'
-                    branch 'origin/main'
+                expression { 
+                    return env.BRANCH_NAME == 'main' || env.GIT_BRANCH == 'origin/main'
                 }
             }
             steps {
