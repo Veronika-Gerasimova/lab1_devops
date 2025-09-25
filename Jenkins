@@ -44,7 +44,7 @@ pipeline {
 
         stage('Run Application') {
             when {
-                branch 'origin/main'
+                branch 'main'
             }
             steps {
                 echo 'Запуск приложения на Windows...'
