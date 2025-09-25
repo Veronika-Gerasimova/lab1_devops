@@ -1,5 +1,5 @@
 pipeline {
-    agent { label 'windows' }  // агент на Windows
+    agent { label 'windows' }
 
     environment {
         PYTHON_PATH = 'C:\\Users\\geras\\AppData\\Local\\Programs\\Python\\Python312\\python.exe'
@@ -60,31 +60,27 @@ pipeline {
 
     post {
         success {
-            node {
-                echo 'CI/CD pipeline выполнен успешно!'
-                withCredentials([string(credentialsId: '01a77dbd-a41f-47e2-9200-01685f486e4a', variable: 'TOKEN')]) {
-                    bat """
-                        curl -H "Authorization: token %TOKEN%" ^
-                             -H "Accept: application/vnd.github+json" ^
-                             -X POST ^
-                             https://api.github.com/repos/Veronika-Gerasimova/lab1_devops/statuses/%GIT_COMMIT% ^
-                             -d "{\\"state\\":\\"success\\",\\"context\\":\\"Jenkins\\",\\"description\\":\\"Build succeeded\\"}"
-                    """
-                }
+            echo 'CI/CD pipeline выполнен успешно!'
+            withCredentials([string(credentialsId: '01a77dbd-a41f-47e2-9200-01685f486e4a', variable: 'TOKEN')]) {
+                bat """
+                    curl -H "Authorization: token %TOKEN%" ^
+                         -H "Accept: application/vnd.github+json" ^
+                         -X POST ^
+                         https://api.github.com/repos/Veronika-Gerasimova/lab1_devops/statuses/%GIT_COMMIT% ^
+                         -d "{\\"state\\":\\"success\\",\\"context\\":\\"Jenkins\\",\\"description\\":\\"Build succeeded\\"}"
+                """
             }
         }
         failure {
-            node {
-                echo 'Pipeline завершился с ошибкой! Проверьте логи.'
-                withCredentials([string(credentialsId: '01a77dbd-a41f-47e2-9200-01685f486e4a', variable: 'TOKEN')]) {
-                    bat """
-                        curl -H "Authorization: token %TOKEN%" ^
-                             -H "Accept: application/vnd.github+json" ^
-                             -X POST ^
-                             https://api.github.com/repos/Veronika-Gerasimova/lab1_devops/statuses/%GIT_COMMIT% ^
-                             -d "{\\"state\\":\\"failure\\",\\"context\\":\\"Jenkins\\",\\"description\\":\\"Build failed\\"}"
-                    """
-                }
+            echo 'Pipeline завершился с ошибкой! Проверьте логи.'
+            withCredentials([string(credentialsId: '01a77dbd-a41f-47e2-9200-01685f486e4a', variable: 'TOKEN')]) {
+                bat """
+                    curl -H "Authorization: token %TOKEN%" ^
+                         -H "Accept: application/vnd.github+json" ^
+                         -X POST ^
+                         https://api.github.com/repos/Veronika-Gerasimova/lab1_devops/statuses/%GIT_COMMIT% ^
+                         -d "{\\"state\\":\\"failure\\",\\"context\\":\\"Jenkins\\",\\"description\\":\\"Build failed\\"}"
+                """
             }
         }
     }
