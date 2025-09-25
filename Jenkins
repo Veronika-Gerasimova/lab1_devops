@@ -61,7 +61,7 @@ pipeline {
     post {
         success {
             echo 'CI/CD pipeline выполнен успешно!'
-            withCredentials([string(credentialsId: '01a77dbd-a41f-47e2-9200-01685f486e4a', variable: 'TOKEN')]) {
+            withCredentials([string(credentialsId: 'github-token2', variable: 'TOKEN')]) {
                 bat """
                     curl -H "Authorization: token %TOKEN%" ^
                          -H "Accept: application/vnd.github+json" ^
@@ -73,7 +73,7 @@ pipeline {
         }
         failure {
             echo 'Pipeline завершился с ошибкой! Проверьте логи.'
-            withCredentials([string(credentialsId: '01a77dbd-a41f-47e2-9200-01685f486e4a', variable: 'TOKEN')]) {
+            withCredentials([string(credentialsId: 'github-token2', variable: 'TOKEN')]) {
                 bat """
                     curl -H "Authorization: token %TOKEN%" ^
                          -H "Accept: application/vnd.github+json" ^
