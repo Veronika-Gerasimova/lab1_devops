@@ -35,9 +35,9 @@ pipeline {
                     return env.BRANCH_NAME == 'main' || env.GIT_BRANCH == 'origin/main'
                 }
             }
-
             steps {
-                bat "docker build -t %APP_NAME% ."
+                echo "Building Docker image using Windows container..."
+                bat "docker build -f Dockerfile.windows -t %APP_NAME% ."
             }
         }
 
@@ -49,7 +49,8 @@ pipeline {
             }
             steps {
                 echo 'Starting deployment...'
-                bat "docker rm -f %APP_NAME% || exit 0"
+                bat "docker stop %APP_NAME% || exit 0"
+                bat "docker rm %APP_NAME% || exit 0"
                 bat "docker run -d -p %APP_PORT%:5000 --name %APP_NAME% %APP_NAME%"
             }
         }
