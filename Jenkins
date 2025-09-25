@@ -6,13 +6,19 @@ pipeline {
         VENV_DIR = 'venv'
         APP_NAME = 'lab1_devops'
         APP_PORT = '5000'
+        GITHUB_TOKEN = credentials('01a77dbd-a41f-47e2-9200-01685f486e4a')
     }
 
     stages {
         stage('Checkout') {
             steps {
                 echo 'Получение кода из репозитория...'
-                checkout scm
+                checkout([$class: 'GitSCM',
+                          branches: [[name: '*/main']],
+                          userRemoteConfigs: [[
+                              url: 'https://github.com/Veronika-Gerasimova/lab1_devops',
+                              credentialsId: '01a77dbd-a41f-47e2-9200-01685f486e4a'
+                          ]]])
             }
         }
 
@@ -43,7 +49,6 @@ pipeline {
             }
             steps {
                 echo 'Запуск приложения на Windows...'
-                // Остановка предыдущего процесса (если был)
                 bat "taskkill /F /IM python.exe 2>nul || echo Нет запущенных процессов"
                 bat "set PYTHONUNBUFFERED=1"
                 bat "start /B .\\%VENV_DIR%\\Scripts\\python.exe app.py"
@@ -57,9 +62,32 @@ pipeline {
     post {
         success {
             echo 'CI/CD pipeline выполнен успешно!'
+            // Обновление статуса коммита на GitHub
+            script {
+                withCredentials([string(credentialsId: '01a77dbd-a41f-47e2-9200-01685f486e4a', variable: 'TOKEN')]) {
+                    bat """
+                        curl -H "Authorization: token %TOKEN%" \
+                             -H "Accept: application/vnd.github+json" \
+                             -X POST \
+                             https://api.github.com/repos/Veronika-Gerasimova/lab1_devops/statuses/%GIT_COMMIT% \
+                             -d "{\\"state\\":\\"success\\",\\"context\\":\\"Jenkins\\",\\"description\\":\\"Build succeeded\\"}"
+                    """
+                }
+            }
         }
         failure {
             echo 'Pipeline завершился с ошибкой! Проверьте логи.'
+            script {
+                withCredentials([string(credentialsId: '01a77dbd-a41f-47e2-9200-01685f486e4a', variable: 'TOKEN')]) {
+                    bat """
+                        curl -H "Authorization: token %TOKEN%" \
+                             -H "Accept: application/vnd.github+json" \
+                             -X POST \
+                             https://api.github.com/repos/Veronika-Gerasimova/lab1_devops/statuses/%GIT_COMMIT% \
+                             -d "{\\"state\\":\\"failure\\",\\"context\\":\\"Jenkins\\",\\"description\\":\\"Build failed\\"}"
+                    """
+                }
+            }
         }
     }
 }
