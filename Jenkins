@@ -1,5 +1,5 @@
 pipeline {
-    agent any
+    agent { label 'windows' }  // агент на Windows
 
     environment {
         PYTHON_PATH = 'C:\\Users\\geras\\AppData\\Local\\Programs\\Python\\Python312\\python.exe'
@@ -16,9 +16,9 @@ pipeline {
             }
         }
 
-        stage('Install Dependencies') {
+        stage('Setup Virtual Environment') {
             steps {
-                echo 'Создание виртуального окружения и установка зависимостей...'
+                echo 'Создание виртуального окружения...'
                 bat "\"${env.PYTHON_PATH}\" -m venv %VENV_DIR%"
                 bat ".\\%VENV_DIR%\\Scripts\\python.exe -m pip install --upgrade pip"
                 bat ".\\%VENV_DIR%\\Scripts\\pip.exe install -r requirements.txt"
@@ -37,57 +37,26 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
-            when {
-                expression { 
-                    return env.BRANCH_NAME == 'main' || env.GIT_BRANCH == 'origin/main'
-                }
-            }
-            steps {
-                echo 'Сборка Docker образа для Windows контейнера...'
-                bat "docker build -f Dockerfile.windows -t %APP_NAME% ."
-            }
-        }
-
-        stage('Deploy to Dev') {
-            when {
-                branch 'dev'
-            }
-            steps {
-                echo 'Деплой в dev окружение...'
-                bat "docker stop %APP_NAME% || echo 'Нет запущенных контейнеров'"
-                bat "docker rm %APP_NAME% || echo 'Нет контейнеров для удаления'"
-                bat "docker run -d -p %APP_PORT%:5000 --name %APP_NAME% %APP_NAME%"
-                bat "timeout /t 5 /nobreak >nul"
-                bat "echo 'Проверка доступности приложения...'"
-                bat "curl -s http://localhost:%APP_PORT%/health || echo 'Приложение еще запускается...'"
-                bat "echo 'Dev deployment completed'"
-            }
-        }
-
-        stage('Deploy to Production') {
+        stage('Run Application') {
             when {
                 branch 'main'
             }
             steps {
-                echo 'Деплой в prod окружение...'
-                bat "docker stop %APP_NAME% || echo 'Нет запущенных контейнеров'"
-                bat "docker rm %APP_NAME% || echo 'Нет контейнеров для удаления'"
-                bat "docker run -d -p %APP_PORT%:5000 --name %APP_NAME% %APP_NAME%"
-                bat "timeout /t 5 /nobreak >nul"
-                bat "echo 'Проверка доступности приложения...'"
+                echo 'Запуск приложения на Windows...'
+                // Остановка предыдущего процесса (если был)
+                bat "taskkill /F /IM python.exe 2>nul || echo Нет запущенных процессов"
+                bat "set PYTHONUNBUFFERED=1"
+                bat "start /B .\\%VENV_DIR%\\Scripts\\python.exe app.py"
+                bat "timeout /t 3 /nobreak >nul"
                 bat "curl -s http://localhost:%APP_PORT%/health || echo 'Приложение еще запускается...'"
-                bat "echo 'Production deployment completed'"
+                echo 'Приложение запущено!'
             }
         }
     }
 
     post {
-        always {
-            echo 'Pipeline завершен'
-        }
         success {
-            echo 'Pipeline выполнен успешно!'
+            echo 'CI/CD pipeline выполнен успешно!'
         }
         failure {
             echo 'Pipeline завершился с ошибкой! Проверьте логи.'
