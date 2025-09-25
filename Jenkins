@@ -55,19 +55,24 @@ pipeline {
             }
         }
 
-        stage('Run Application') {
-            when {
-                expression { env.GIT_BRANCH == 'main' }  // теперь проверка работает
+        
+    stage('Run Application') {
+        when {
+            expression {
+                // Получаем текущую ветку через git
+                def branch = bat(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
+                echo "Current branch: ${branch}"
+                return branch == 'main'
             }
-            steps {
-                echo 'Запуск приложения на Windows...'
-                bat "taskkill /F /IM python.exe 2>nul || echo Нет запущенных процессов"
-                bat "set PYTHONUNBUFFERED=1"
-                bat "start /B .\\%VENV_DIR%\\Scripts\\python.exe app.py"
-                bat "timeout /t 3 /nobreak >nul"
-                bat "curl -s http://localhost:%APP_PORT%/health || echo 'Приложение еще запускается...'"
-                echo 'Приложение запущено!'
-            }
+        }
+        steps {
+            echo 'Запуск приложения на Windows...'
+            bat "taskkill /F /IM python.exe 2>nul || echo Нет запущенных процессов"
+            bat "set PYTHONUNBUFFERED=1"
+            bat "start /B .\\%VENV_DIR%\\Scripts\\python.exe app.py"
+            bat "timeout /t 3 /nobreak >nul"
+            bat "curl -s http://localhost:%APP_PORT%/health || echo 'Приложение еще запускается...'"
+            echo 'Приложение запущено!'
         }
     }
 
