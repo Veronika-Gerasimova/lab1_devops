@@ -6,7 +6,6 @@ pipeline {
         VENV_DIR = 'venv'
         APP_NAME = 'lab1_devops'
         APP_PORT = '5000'
-        GITHUB_TOKEN = credentials('01a77dbd-a41f-47e2-9200-01685f486e4a')
     }
 
     stages {
@@ -61,29 +60,28 @@ pipeline {
 
     post {
         success {
-            echo 'CI/CD pipeline выполнен успешно!'
-            // Обновление статуса коммита на GitHub
-            script {
-                withCredentials([string(credentialsId: 'github-token2', variable: 'TOKEN')]) {
+            node {
+                echo 'CI/CD pipeline выполнен успешно!'
+                withCredentials([string(credentialsId: '01a77dbd-a41f-47e2-9200-01685f486e4a', variable: 'TOKEN')]) {
                     bat """
-                        curl -H "Authorization: token %TOKEN%" \
-                             -H "Accept: application/vnd.github+json" \
-                             -X POST \
-                             https://api.github.com/repos/Veronika-Gerasimova/lab1_devops/statuses/%GIT_COMMIT% \
+                        curl -H "Authorization: token %TOKEN%" ^
+                             -H "Accept: application/vnd.github+json" ^
+                             -X POST ^
+                             https://api.github.com/repos/Veronika-Gerasimova/lab1_devops/statuses/%GIT_COMMIT% ^
                              -d "{\\"state\\":\\"success\\",\\"context\\":\\"Jenkins\\",\\"description\\":\\"Build succeeded\\"}"
                     """
                 }
             }
         }
         failure {
-            echo 'Pipeline завершился с ошибкой! Проверьте логи.'
-            script {
-                withCredentials([string(credentialsId: 'github-token2', variable: 'TOKEN')]) {
+            node {
+                echo 'Pipeline завершился с ошибкой! Проверьте логи.'
+                withCredentials([string(credentialsId: '01a77dbd-a41f-47e2-9200-01685f486e4a', variable: 'TOKEN')]) {
                     bat """
-                        curl -H "Authorization: token %TOKEN%" \
-                             -H "Accept: application/vnd.github+json" \
-                             -X POST \
-                             https://api.github.com/repos/Veronika-Gerasimova/lab1_devops/statuses/%GIT_COMMIT% \
+                        curl -H "Authorization: token %TOKEN%" ^
+                             -H "Accept: application/vnd.github+json" ^
+                             -X POST ^
+                             https://api.github.com/repos/Veronika-Gerasimova/lab1_devops/statuses/%GIT_COMMIT% ^
                              -d "{\\"state\\":\\"failure\\",\\"context\\":\\"Jenkins\\",\\"description\\":\\"Build failed\\"}"
                     """
                 }
