@@ -31,7 +31,10 @@ pipeline {
 
         stage('Build Docker image') {
             when {
-                branch 'main'
+                anyOf {
+                    branch 'main'
+                    branch 'origin/main'
+                }
             }
             steps {
                 bat "docker build -t %APP_NAME% ."
@@ -40,7 +43,10 @@ pipeline {
 
         stage('Deploy') {
             when {
-                branch 'main'
+                anyOf {
+                    branch 'main'
+                    branch 'origin/main'
+                }
             }
             steps {
                 echo 'Starting deployment...'
