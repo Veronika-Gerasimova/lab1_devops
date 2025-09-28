@@ -21,19 +21,6 @@ pipeline {
             }
         }
 
-        stage('Determine Branch') {
-            steps {
-                script {
-                    // Получаем текущую ветку
-                    env.GIT_BRANCH = bat(
-                        script: 'git rev-parse --abbrev-ref HEAD',
-                        returnStdout: true
-                    ).trim()
-                    echo "Current branch: ${env.GIT_BRANCH}"
-                }
-            }
-        }
-
         stage('Setup Virtual Environment') {
             steps {
                 echo 'Создание виртуального окружения...'
@@ -57,7 +44,7 @@ pipeline {
 
         stage('Run Application') {
             when {
-                expression { env.GIT_BRANCH == 'main' }  // теперь проверка работает
+                branch 'main'
             }
             steps {
                 echo 'Запуск приложения на Windows...'
