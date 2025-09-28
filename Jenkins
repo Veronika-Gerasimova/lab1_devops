@@ -61,6 +61,7 @@ pipeline {
             steps {
                 echo 'Deploying to production environment...'
                 bat '''
+                    setlocal enabledelayedexpansion
                     echo Stopping previous Python processes...
                     taskkill /F /IM python.exe 2>nul || echo No running Python processes
                     
@@ -68,21 +69,25 @@ pipeline {
                     start /B .\\%VENV_DIR%\\Scripts\\python.exe app.py
                     
                     echo Waiting for application to start...
-                    timeout /t 5 /nobreak >nul
+                    timeout /t 8 /nobreak >nul
                     
                     echo Checking application health...
-                    for /L %%i in (1,1,10) do (
-                        curl -s http://localhost:%APP_PORT%/health >nul 2>&1
-                        if !errorlevel! equ 0 (
+                    for /L %%i in (1,1,15) do (
+                        echo Testing connection attempt %%i...
+                        curl -s -o nul -w "%%{http_code}" http://localhost:%APP_PORT%/ > temp_status.txt
+                        set /p status=<temp_status.txt
+                        del temp_status.txt
+                        if "!status!"=="200" (
                             echo Application successfully started and responding to requests!
                             goto :success
                         )
-                        echo Attempt %%i: application is still starting...
-                        timeout /t 2 /nobreak >nul
+                        echo Attempt %%i: HTTP status !status!, application still starting...
+                        timeout /t 3 /nobreak >nul
                     )
-                    echo ERROR: Application not responding after 10 attempts!
+                    echo ERROR: Application not responding after 15 attempts!
                     exit /b 1
                     :success
+                    endlocal
                 '''
                 echo 'Production deployment completed successfully!'
             }
