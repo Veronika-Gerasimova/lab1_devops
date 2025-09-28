@@ -2,6 +2,7 @@ pipeline {
     agent any
 
     environment {
+        JAVA_TOOL_OPTIONS = "-Dfile.encoding=UTF-8"
         PYTHON_PATH = 'C:\\Users\\geras\\AppData\\Local\\Programs\\Python\\Python312\\python.exe'
         VENV_DIR = 'venv'
         APP_NAME = 'lab1_devops'
