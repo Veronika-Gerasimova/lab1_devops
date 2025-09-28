@@ -59,107 +59,82 @@ pipeline {
                 }
             }
             steps {
-                echo 'Deploying to production environment with Docker...'
+                echo 'Deploying to production environment...'
                 bat '''
                     setlocal enabledelayedexpansion
+                    echo Stopping previous Python processes...
+                    taskkill /F /IM python.exe 2>nul || echo No running Python processes
                     
-                    echo Checking Docker installation...
-                    docker --version
-                    if %errorlevel% neq 0 (
-                        echo Docker is not installed or not in PATH.
-                        echo Please install Docker Desktop for Windows.
-                        echo Download from: https://www.docker.com/products/docker-desktop
-                        exit /b 1
-                    )
+                    echo Creating startup script...
+                    echo @echo off > start_app.bat
+                    echo cd /d "%%~dp0" >> start_app.bat
+                    echo echo Starting Flask application... >> start_app.bat
+                    echo .\\%VENV_DIR%\\Scripts\\python.exe app.py >> start_app.bat
+                    echo pause >> start_app.bat
                     
-                    echo Docker is available!
-                    echo.
+                    echo Creating stop script...
+                    echo @echo off > stop_app.bat
+                    echo echo Stopping Flask application... >> stop_app.bat
+                    echo taskkill /F /IM python.exe 2^>nul ^|^| echo No Python processes found >> stop_app.bat
+                    echo echo Application stopped. >> stop_app.bat
+                    echo pause >> stop_app.bat
                     
-                    echo Stopping existing containers...
-                    docker-compose down 2>nul
-                    
-                    echo Building new Docker image...
-                    docker-compose build --no-cache
-                    
-                    echo Starting application with Docker...
-                    docker-compose up -d
+                    echo Starting application on port %APP_PORT%...
+                    start /B /MIN start_app.bat
                     
                     echo Waiting for application to start...
-                    timeout /t 15 /nobreak >nul
+                    timeout /t 8 /nobreak >nul
                     
                     echo Checking application health...
-                    for /L %%i in (1,1,20) do (
+                    for /L %%i in (1,1,15) do (
                         echo Testing connection attempt %%i...
                         curl -s -o nul -w "%%{http_code}" http://localhost:%APP_PORT%/ > temp_status.txt
                         set /p status=<temp_status.txt
                         del temp_status.txt
                         if "!status!"=="200" (
-                            echo Application successfully started and responding to requests!
-                            echo.
-                            echo ========================================
-                            echo    DEPLOYMENT SUCCESSFUL!
-                            echo ========================================
-                            echo.
-                            echo Application URLs:
-                            echo   - Direct: http://localhost:%APP_PORT%/
-                            echo   - Via Nginx: http://localhost:80/
-                            echo   - Network: http://10.255.0.1:%APP_PORT%/
-                            echo.
-                            echo Container status:
-                            docker-compose ps
-                            echo.
-                            echo Docker containers will continue running after pipeline completion!
-                            echo Application will auto-restart on system reboot.
-                            echo.
-                            echo Management commands:
-                            echo   docker-compose ps          - Check status
-                            echo   docker-compose logs -f     - View logs
-                            echo   docker-compose restart     - Restart app
-                            echo   docker-compose down        - Stop app
-                            echo.
-                            
-                            echo Creating management script...
-                            echo @echo off > docker-manage.bat
-                            echo echo Docker Flask App Manager >> docker-manage.bat
-                            echo echo ======================== >> docker-manage.bat
-                            echo echo. >> docker-manage.bat
-                            echo echo Container status: >> docker-manage.bat
-                            echo docker-compose ps >> docker-manage.bat
-                            echo echo. >> docker-manage.bat
-                            echo echo Application URLs: >> docker-manage.bat
-                            echo echo   - Direct: http://localhost:%APP_PORT%/ >> docker-manage.bat
-                            echo echo   - Via Nginx: http://localhost:80/ >> docker-manage.bat
-                            echo echo. >> docker-manage.bat
-                            echo echo Commands: >> docker-manage.bat
-                            echo echo   docker-compose ps          - Check status >> docker-manage.bat
-                            echo echo   docker-compose logs -f     - View logs >> docker-manage.bat
-                            echo echo   docker-compose restart     - Restart app >> docker-manage.bat
-                            echo echo   docker-compose down        - Stop app >> docker-manage.bat
-                            echo echo   docker-compose up -d       - Start app >> docker-manage.bat
-                            echo echo. >> docker-manage.bat
-                            echo pause >> docker-manage.bat
-                            
-                            echo Management script created: docker-manage.bat
-                            echo.
-                            echo Docker deployment completed successfully!
-                            echo Application will remain running after pipeline completion.
-                            goto :success
+                    echo Application successfully started and responding to requests!
+                    
+                    echo Creating Windows scheduled task for auto-startup...
+                    schtasks /create /tn "FlaskApp_%APP_NAME%" /tr "%%~dp0start_app.bat" /sc onstart /ru "SYSTEM" /f 2>nul || echo Task creation failed or already exists
+                    
+                    echo Deployment completed! Application is running and will auto-start on system reboot.
+                    echo.
+                    echo Application URLs:
+                    echo   - Local: http://localhost:%APP_PORT%/
+                    echo   - Network: http://10.255.0.1:%APP_PORT%/
+                    echo.
+                    echo Management scripts created:
+                    echo   - start_app.bat (start application)
+                    echo   - stop_app.bat (stop application)
+                    echo.
+                    
+                    echo Creating deployment README...
+                    echo # Flask Application Deployment > DEPLOYMENT_README.md
+                    echo. >> DEPLOYMENT_README.md
+                    echo ## Application URLs >> DEPLOYMENT_README.md
+                    echo - Local: http://localhost:%APP_PORT%/ >> DEPLOYMENT_README.md
+                    echo - Network: http://10.255.0.1:%APP_PORT%/ >> DEPLOYMENT_README.md
+                    echo. >> DEPLOYMENT_README.md
+                    echo ## Management Scripts >> DEPLOYMENT_README.md
+                    echo - start_app.bat: Start the application >> DEPLOYMENT_README.md
+                    echo - stop_app.bat: Stop the application >> DEPLOYMENT_README.md
+                    echo. >> DEPLOYMENT_README.md
+                    echo ## Auto-startup >> DEPLOYMENT_README.md
+                    echo The application is configured to start automatically on system reboot via Windows Scheduled Task. >> DEPLOYMENT_README.md
+                    echo Task name: FlaskApp_%APP_NAME% >> DEPLOYMENT_README.md
+                    echo. >> DEPLOYMENT_README.md
+                    
+                    goto :success
                         )
                         echo Attempt %%i: HTTP status !status!, application still starting...
                         timeout /t 3 /nobreak >nul
                     )
-                    echo ERROR: Application not responding after 20 attempts!
-                    echo Container logs:
-                    docker-compose logs flask-app
-                    echo.
-                    echo Stopping failed deployment...
-                    docker-compose down
+                    echo ERROR: Application not responding after 15 attempts!
                     exit /b 1
                     :success
                     endlocal
                 '''
-                echo 'Docker deployment completed successfully!'
-                echo 'Application will continue running after pipeline completion.'
+                echo 'Production deployment completed successfully!'
             }
         }
     }
@@ -167,34 +142,18 @@ pipeline {
     post {
         success {
             echo 'CI/CD pipeline completed successfully!'
-            echo 'Docker containers are running and application is accessible.'
-            echo 'Application URLs:'
-            echo '  - Direct: http://localhost:5000/'
-            echo '  - Via Nginx: http://localhost:80/'
-            echo '  - Network: http://10.255.0.1:5000/'
-            echo ''
-            echo 'Management commands:'
-            echo '  docker-compose ps          - Check status'
-            echo '  docker-compose logs -f     - View logs'
-            echo '  docker-compose restart     - Restart app'
-            echo '  docker-compose down        - Stop app'
-            echo ''
-            echo 'Application will continue running after pipeline completion!'
-            
             withCredentials([string(credentialsId: 'github-token2', variable: 'TOKEN')]) {
                 bat """
                     curl -H "Authorization: token %TOKEN%" ^
                          -H "Accept: application/vnd.github+json" ^
                          -X POST ^
                          https://api.github.com/repos/Veronika-Gerasimova/lab1_devops/statuses/%GIT_COMMIT% ^
-                         -d "{\\"state\\":\\"success\\",\\"context\\":\\"Jenkins\\",\\"description\\":\\"Build succeeded - App running on Docker\\"}"
+                         -d "{\\"state\\":\\"success\\",\\"context\\":\\"Jenkins\\",\\"description\\":\\"Build succeeded\\"}"
                 """
             }
         }
         failure {
             echo 'Pipeline failed! Check the logs.'
-            echo 'Docker containers have been stopped.'
-            
             withCredentials([string(credentialsId: 'github-token2', variable: 'TOKEN')]) {
                 bat """
                     curl -H "Authorization: token %TOKEN%" ^
