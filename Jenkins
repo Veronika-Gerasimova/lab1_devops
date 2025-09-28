@@ -19,6 +19,10 @@ pipeline {
                               url: 'https://github.com/Veronika-Gerasimova/lab1_devops',
                               credentialsId: 'github-token2'
                           ]]])
+                script {
+                    echo "Current branch: ${env.BRANCH_NAME}"
+                    echo "Git commit: ${env.GIT_COMMIT}"
+                }
             }
         }
 
@@ -43,18 +47,44 @@ pipeline {
             }
         }
 
-        stage('Run Application') {
+        stage('Deploy to Production') {
             when {
-                branch 'main'
+                anyOf {
+                    branch 'main'
+                    branch 'origin/main'
+                    allOf {
+                        not { branch 'dev' }
+                        not { branch 'feature' }
+                    }
+                }
             }
             steps {
-                echo 'Запуск приложения на Windows...'
-                bat "taskkill /F /IM python.exe 2>nul || echo Нет запущенных процессов"
-                bat "set PYTHONUNBUFFERED=1"
-                bat "start /B .\\%VENV_DIR%\\Scripts\\python.exe app.py"
-                bat "timeout /t 3 /nobreak >nul"
-                bat "curl -s http://localhost:%APP_PORT%/health || echo 'Приложение еще запускается...'"
-                echo 'Приложение запущено!'
+                echo 'Деплой в production окружение...'
+                bat '''
+                    echo Остановка предыдущих процессов Python...
+                    taskkill /F /IM python.exe 2>nul || echo Нет запущенных процессов Python
+                    
+                    echo Запуск приложения на порту %APP_PORT%...
+                    start /B .\\%VENV_DIR%\\Scripts\\python.exe app.py
+                    
+                    echo Ожидание запуска приложения...
+                    timeout /t 5 /nobreak >nul
+                    
+                    echo Проверка работоспособности приложения...
+                    for /L %%i in (1,1,10) do (
+                        curl -s http://localhost:%APP_PORT%/health >nul 2>&1
+                        if !errorlevel! equ 0 (
+                            echo Приложение успешно запущено и отвечает на запросы!
+                            goto :success
+                        )
+                        echo Попытка %%i: приложение еще запускается...
+                        timeout /t 2 /nobreak >nul
+                    )
+                    echo ОШИБКА: Приложение не отвечает после 10 попыток!
+                    exit /b 1
+                    :success
+                '''
+                echo 'Production deployment completed successfully!'
             }
         }
     }
