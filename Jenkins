@@ -12,7 +12,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                echo 'Получение кода из репозитория...'
+                echo 'Getting code from repository...'
                 checkout([$class: 'GitSCM',
                           branches: [[name: '*/main']],
                           userRemoteConfigs: [[
@@ -28,7 +28,7 @@ pipeline {
 
         stage('Setup Virtual Environment') {
             steps {
-                echo 'Создание виртуального окружения...'
+                echo 'Creating virtual environment...'
                 bat "\"${env.PYTHON_PATH}\" -m venv %VENV_DIR%"
                 bat ".\\%VENV_DIR%\\Scripts\\python.exe -m pip install --upgrade pip"
                 bat ".\\%VENV_DIR%\\Scripts\\pip.exe install -r requirements.txt"
@@ -37,12 +37,12 @@ pipeline {
 
         stage('Run Tests') {
             steps {
-                echo 'Запуск тестов...'
+                echo 'Running tests...'
                 bat ".\\%VENV_DIR%\\Scripts\\pytest.exe -q --disable-warnings --maxfail=1"
             }
             post {
                 always {
-                    echo 'Тесты завершены'
+                    echo 'Tests completed'
                 }
             }
         }
@@ -59,28 +59,28 @@ pipeline {
                 }
             }
             steps {
-                echo 'Деплой в production окружение...'
+                echo 'Deploying to production environment...'
                 bat '''
-                    echo Остановка предыдущих процессов Python...
-                    taskkill /F /IM python.exe 2>nul || echo Нет запущенных процессов Python
+                    echo Stopping previous Python processes...
+                    taskkill /F /IM python.exe 2>nul || echo No running Python processes
                     
-                    echo Запуск приложения на порту %APP_PORT%...
+                    echo Starting application on port %APP_PORT%...
                     start /B .\\%VENV_DIR%\\Scripts\\python.exe app.py
                     
-                    echo Ожидание запуска приложения...
+                    echo Waiting for application to start...
                     timeout /t 5 /nobreak >nul
                     
-                    echo Проверка работоспособности приложения...
+                    echo Checking application health...
                     for /L %%i in (1,1,10) do (
                         curl -s http://localhost:%APP_PORT%/health >nul 2>&1
                         if !errorlevel! equ 0 (
-                            echo Приложение успешно запущено и отвечает на запросы!
+                            echo Application successfully started and responding to requests!
                             goto :success
                         )
-                        echo Попытка %%i: приложение еще запускается...
+                        echo Attempt %%i: application is still starting...
                         timeout /t 2 /nobreak >nul
                     )
-                    echo ОШИБКА: Приложение не отвечает после 10 попыток!
+                    echo ERROR: Application not responding after 10 attempts!
                     exit /b 1
                     :success
                 '''
@@ -91,7 +91,7 @@ pipeline {
 
     post {
         success {
-            echo 'CI/CD pipeline выполнен успешно!'
+            echo 'CI/CD pipeline completed successfully!'
             withCredentials([string(credentialsId: 'github-token2', variable: 'TOKEN')]) {
                 bat """
                     curl -H "Authorization: token %TOKEN%" ^
@@ -103,7 +103,7 @@ pipeline {
             }
         }
         failure {
-            echo 'Pipeline завершился с ошибкой! Проверьте логи.'
+            echo 'Pipeline failed! Check the logs.'
             withCredentials([string(credentialsId: 'github-token2', variable: 'TOKEN')]) {
                 bat """
                     curl -H "Authorization: token %TOKEN%" ^
