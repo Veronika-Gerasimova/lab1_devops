@@ -65,8 +65,22 @@ pipeline {
                     echo Stopping previous Python processes...
                     taskkill /F /IM python.exe 2>nul || echo No running Python processes
                     
+                    echo Creating startup script...
+                    echo @echo off > start_app.bat
+                    echo cd /d "%%~dp0" >> start_app.bat
+                    echo echo Starting Flask application... >> start_app.bat
+                    echo .\\%VENV_DIR%\\Scripts\\python.exe app.py >> start_app.bat
+                    echo pause >> start_app.bat
+                    
+                    echo Creating stop script...
+                    echo @echo off > stop_app.bat
+                    echo echo Stopping Flask application... >> stop_app.bat
+                    echo taskkill /F /IM python.exe 2^>nul ^|^| echo No Python processes found >> stop_app.bat
+                    echo echo Application stopped. >> stop_app.bat
+                    echo pause >> stop_app.bat
+                    
                     echo Starting application on port %APP_PORT%...
-                    start /B .\\%VENV_DIR%\\Scripts\\python.exe app.py
+                    start /B /MIN start_app.bat
                     
                     echo Waiting for application to start...
                     timeout /t 8 /nobreak >nul
@@ -78,8 +92,39 @@ pipeline {
                         set /p status=<temp_status.txt
                         del temp_status.txt
                         if "!status!"=="200" (
-                            echo Application successfully started and responding to requests!
-                            goto :success
+                    echo Application successfully started and responding to requests!
+                    
+                    echo Creating Windows scheduled task for auto-startup...
+                    schtasks /create /tn "FlaskApp_%APP_NAME%" /tr "%%~dp0start_app.bat" /sc onstart /ru "SYSTEM" /f 2>nul || echo Task creation failed or already exists
+                    
+                    echo Deployment completed! Application is running and will auto-start on system reboot.
+                    echo.
+                    echo Application URLs:
+                    echo   - Local: http://localhost:%APP_PORT%/
+                    echo   - Network: http://10.255.0.1:%APP_PORT%/
+                    echo.
+                    echo Management scripts created:
+                    echo   - start_app.bat (start application)
+                    echo   - stop_app.bat (stop application)
+                    echo.
+                    
+                    echo Creating deployment README...
+                    echo # Flask Application Deployment > DEPLOYMENT_README.md
+                    echo. >> DEPLOYMENT_README.md
+                    echo ## Application URLs >> DEPLOYMENT_README.md
+                    echo - Local: http://localhost:%APP_PORT%/ >> DEPLOYMENT_README.md
+                    echo - Network: http://10.255.0.1:%APP_PORT%/ >> DEPLOYMENT_README.md
+                    echo. >> DEPLOYMENT_README.md
+                    echo ## Management Scripts >> DEPLOYMENT_README.md
+                    echo - start_app.bat: Start the application >> DEPLOYMENT_README.md
+                    echo - stop_app.bat: Stop the application >> DEPLOYMENT_README.md
+                    echo. >> DEPLOYMENT_README.md
+                    echo ## Auto-startup >> DEPLOYMENT_README.md
+                    echo The application is configured to start automatically on system reboot via Windows Scheduled Task. >> DEPLOYMENT_README.md
+                    echo Task name: FlaskApp_%APP_NAME% >> DEPLOYMENT_README.md
+                    echo. >> DEPLOYMENT_README.md
+                    
+                    goto :success
                         )
                         echo Attempt %%i: HTTP status !status!, application still starting...
                         timeout /t 3 /nobreak >nul
