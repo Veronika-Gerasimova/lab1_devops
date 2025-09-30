@@ -26,26 +26,6 @@ pipeline {
             }
         }
 
-        stage('Detect Merge Commit') {
-            steps {
-                echo 'Detecting if current commit is a merge commit...'
-                bat '''
-                    git cat-file -p HEAD | findstr /b parent | find /c /v "" > parents.txt
-                '''
-                script {
-                    def parentCount = readFile('parents.txt').trim()
-                    def isMerge = false
-                    try {
-                        isMerge = parentCount?.isInteger() && parentCount.toInteger() > 1
-                    } catch (ignored) {
-                        isMerge = false
-                    }
-                    env.IS_MERGE = isMerge.toString()
-                    echo "Parents: ${parentCount} | IS_MERGE=${env.IS_MERGE}"
-                }
-            }
-        }
-
         stage('Setup Virtual Environment') {
             steps {
                 echo 'Creating virtual environment...'
@@ -69,12 +49,13 @@ pipeline {
 
         stage('Deploy to Production') {
             when {
-                allOf {
-                    anyOf {
-                        branch 'main'
-                        branch 'origin/main'
+                anyOf {
+                    branch 'main'
+                    branch 'origin/main'
+                    allOf {
+                        not { branch 'dev' }
+                        not { branch 'feature' }
                     }
-                    environment name: 'IS_MERGE', value: 'true'
                 }
             }
             steps {
