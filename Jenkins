@@ -14,7 +14,8 @@ pipeline {
             steps {
                 echo 'Getting code from repository...'
                 checkout([$class: 'GitSCM',
-                          branches: [[name: '*/main']],
+                          branches: [[name: "*/${env.BRANCH_NAME}"]],
+                          extensions: [[ $class: 'LocalBranch', localBranch: '**' ]],
                           userRemoteConfigs: [[
                               url: 'https://github.com/Veronika-Gerasimova/lab1_devops',
                               credentialsId: 'github-token2'
@@ -22,6 +23,18 @@ pipeline {
                 script {
                     echo "Current branch: ${env.BRANCH_NAME}"
                     echo "Git commit: ${env.GIT_COMMIT}"
+                }
+            }
+        }
+
+        stage('Set Build Context') {
+            steps {
+                script {
+                    def parents = bat(returnStdout: true, script: 'git show -s --format=%p HEAD').trim()
+                    def isMerge = parents.split().size() > 1
+                    env.IS_MERGE_COMMIT = isMerge ? 'true' : 'false'
+                    echo "Parents: ${parents}"
+                    echo "IS_MERGE_COMMIT=${env.IS_MERGE_COMMIT}"
                 }
             }
         }
@@ -49,13 +62,9 @@ pipeline {
 
         stage('Deploy to Production') {
             when {
-                anyOf {
+                allOf {
                     branch 'main'
-                    branch 'origin/main'
-                    allOf {
-                        not { branch 'dev' }
-                        not { branch 'feature' }
-                    }
+                    expression { return env.IS_MERGE_COMMIT == 'true' }
                 }
             }
             steps {
