@@ -157,7 +157,7 @@ pipeline {
                          -H "Accept: application/vnd.github+json" ^
                          -X POST ^
                          https://api.github.com/repos/Veronika-Gerasimova/lab1_devops/statuses/%GIT_COMMIT% ^
-                         -d "{\\"state\\":\\"success\\",\\"context\\":\\"Jenkins\\",\\"description\\":\\"Build succeeded\\"}"
+                         -d "{\"state\":\"success\",\"context\":\"Jenkins\",\"description\":\"Build succeeded\"}"
                 """
             }
         }
@@ -169,7 +169,7 @@ pipeline {
                          -H "Accept: application/vnd.github+json" ^
                          -X POST ^
                          https://api.github.com/repos/Veronika-Gerasimova/lab1_devops/statuses/%GIT_COMMIT% ^
-                         -d "{\\"state\\":\\"failure\\",\\"context\\":\\"Jenkins\\",\\"description\\":\\"Build failed\\"}"
+                         -d "{\"state\":\"failure\",\"context\":\"Jenkins\",\"description\":\"Build failed\"}"
                 """
             }
         }
