@@ -1,14 +1,37 @@
 from flask import Flask, request, jsonify, render_template_string, redirect, url_for
+import os
+
+from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
 
-# список студентов
-students = [
-    {"id": 1, "name": "Иван Иванов"},
-    {"id": 2, "name": "Петр Петров"},
-    {"id": 3, "name": "Анна Смирнова"},
-    {"id": 4, "name": "Поля Смирнова"}
-]
+# Конфигурация БД: в Docker используется Postgres, локально/в тестах — SQLite
+DATABASE_URL = os.getenv("DATABASE_URL")
+TESTING = os.getenv("TESTING", "0") == "1"
+
+if DATABASE_URL:
+    app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
+elif TESTING:
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
+else:
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///app.db"
+
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+db = SQLAlchemy(app)
+
+
+class Student(db.Model):
+    __tablename__ = "students"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False, index=True)
+
+    def to_dict(self):
+        return {"id": self.id, "name": self.name}
+
+
+with app.app_context():
+    db.create_all()
 
 # главная страница
 @app.route("/")
@@ -63,7 +86,7 @@ def get_students_page():
         <a href="{{ url_for('index') }}">⬅ Назад</a>
     </body>
     </html>
-    """, students=students)
+    """, students=[s.to_dict() for s in Student.query.order_by(Student.id).all()])
 
 # форма добавления студента
 @app.route("/add-student", methods=["GET"])
@@ -99,28 +122,39 @@ def add_student_form():
 def add_student_form_post():
     name = request.form.get("name")
     if name:
-        new_id = max(s["id"] for s in students) + 1 if students else 1
-        students.append({"id": new_id, "name": name})
+        db.session.add(Student(name=name))
+        db.session.commit()
     return redirect(url_for("get_students_page"))
 
 # API JSON (для тестов)
 @app.route("/api/students", methods=["GET"])
 def get_students_json():
-    return jsonify(students), 200
+    all_students = [s.to_dict() for s in Student.query.order_by(Student.id).all()]
+    return jsonify(all_students), 200
 
 @app.route("/api/students", methods=["POST"])
 def add_student_json():
     data = request.get_json()
     if not data or "name" not in data:
         return jsonify({"error": "Name is required"}), 400
-    new_id = max(s["id"] for s in students) + 1 if students else 1
-    new_student = {"id": new_id, "name": data["name"]}
-    students.append(new_student)
-    return jsonify(new_student), 201
+    student = Student(name=data["name"])
+    db.session.add(student)
+    db.session.commit()
+    return jsonify(student.to_dict()), 201
+
+# Health check endpoint
+@app.route("/health", methods=["GET"])
+def health_check():
+    try:
+        # простая проверка соединения с БД
+        db.session.execute(db.text("SELECT 1"))
+        db_status = "ok"
+    except Exception:
+        db_status = "error"
+    return jsonify({"status": "healthy", "db": db_status}), 200
 
 if __name__ == "__main__":
-    import os
     with open("flask.pid", "w") as f:
         f.write(str(os.getpid()))
-    app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=False)
+    app.run(host="0.0.0.0", port=int(os.getenv("APP_PORT", "5000")), debug=False, use_reloader=False)
 

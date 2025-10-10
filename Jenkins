@@ -1,88 +1,117 @@
 pipeline {
     agent any
-    
+
     environment {
+        JAVA_TOOL_OPTIONS = "-Dfile.encoding=UTF-8"
+        REGISTRY = 'ghcr.io'
+        ORG = 'Veronika-Gerasimova'
+        IMAGE = 'lab1_devops-app'
         APP_NAME = 'lab1_devops'
-        PYTHON_EXE = 'C:\\Users\\geras\\AppData\\Local\\Programs\\Python\\Python312\\python.exe' 
-        PORT_DEV = '5000'
-        PORT_PROD = '8000'
+        APP_PORT = '80'
+        COMPOSE_CMD = 'docker compose'
     }
-    
+
     stages {
         stage('Checkout') {
             steps {
-                echo 'Получение кода из репозитория...'
-                checkout scm
-            }
-        }
-        
-        stage('Setup Python Environment') {
-            steps {
-                echo 'Создание виртуального окружения и установка зависимостей...'
-                bat '%PYTHON_EXE% -m venv venv'
-                bat '.\\venv\\Scripts\\python.exe -m pip install --upgrade pip'
-                bat '.\\venv\\Scripts\\python.exe -m pip install -r requirements.txt'
-            }
-        }
-        
-        stage('Test') {
-            steps {
-                echo 'Запуск тестов...'
-                bat '.\\venv\\Scripts\\pytest -v --tb=short'
-            }
-            post {
-                always {
-                    echo 'Тесты завершены.'
+                echo 'Getting code from repository...'
+                checkout([$class: 'GitSCM',
+                          branches: [[name: "*/${env.BRANCH_NAME}"]],
+                          extensions: [[ $class: 'LocalBranch', localBranch: '**' ]],
+                          userRemoteConfigs: [[
+                              url: 'https://github.com/Veronika-Gerasimova/lab1_devops',
+                              credentialsId: 'github-token2'
+                          ]]])
+                script {
+                    echo "Current branch: ${env.BRANCH_NAME}"
+                    echo "Git commit: ${env.GIT_COMMIT}"
                 }
             }
         }
-        
-        stage('Deploy to Dev') {
-            when {
-                branch 'dev'
-            }
+
+        stage('Set Build Context') {
             steps {
-                echo 'Деплой в dev окружение...'
-                bat '''
-                    echo Остановка предыдущего процесса, если есть...
-                    taskkill /F /IM python.exe 2>nul || echo Нет запущенных процессов
-                    echo Запуск приложения на порту %PORT_DEV%...
-                    start /B .\\venv\\Scripts\\python.exe app.py
-                    timeout /t 3 /nobreak >nul
-                    curl -s http://localhost:%PORT_DEV%/ || echo Приложение еще запускается...
-                '''
-                echo 'Dev deployment completed'
+                script {
+                    def parents = bat(returnStdout: true, script: 'git show -s --format=%p HEAD').trim()
+                    def isMerge = parents.split().size() > 1
+                    env.IS_MERGE_COMMIT = isMerge ? 'true' : 'false'
+                    echo "Parents: ${parents}"
+                    echo "IS_MERGE_COMMIT=${env.IS_MERGE_COMMIT}"
+                }
             }
         }
-        
-        stage('Deploy to Production') {
+
+        stage('Build Docker Image') {
+            steps {
+                echo 'Building docker image...'
+                bat "docker build -t %IMAGE%:commit-%GIT_COMMIT% -t %IMAGE%:latest ."
+            }
+        }
+
+        stage('Unit Tests (Docker)') {
+            steps {
+                echo 'Running tests inside container (SQLite in-memory)...'
+                bat "docker run --rm -e TESTING=1 %IMAGE%:latest pytest -q --disable-warnings --maxfail=1"
+            }
+        }
+
+        stage('Login to GHCR') {
+            steps {
+                withCredentials([string(credentialsId: 'github-token2', variable: 'TOKEN')]) {
+                    bat "echo %TOKEN% | docker login %REGISTRY% -u %ORG% --password-stdin"
+                }
+            }
+        }
+
+        stage('Push Image') {
+            steps {
+                bat "docker tag %IMAGE%:latest %REGISTRY%/%ORG%/%IMAGE%:latest"
+                bat "docker tag %IMAGE%:commit-%GIT_COMMIT% %REGISTRY%/%ORG%/%IMAGE%:commit-%GIT_COMMIT%"
+                bat "docker push %REGISTRY%/%ORG%/%IMAGE%:latest"
+                bat "docker push %REGISTRY%/%ORG%/%IMAGE%:commit-%GIT_COMMIT%"
+            }
+        }
+
+        stage('Deploy (docker-compose)') {
             when {
-                branch 'main'
+                allOf {
+                    branch 'main'
+                    expression { return env.IS_MERGE_COMMIT == 'true' }
+                }
             }
             steps {
-                echo 'Деплой в prod окружение...'
-                bat '''
-                    echo Остановка предыдущего процесса, если есть...
-                    taskkill /F /IM python.exe 2>nul || echo Нет запущенных процессов
-                    echo Запуск приложения на порту %PORT_PROD%...
-                    start /B .\\venv\\Scripts\\python.exe app.py
-                    timeout /t 3 /nobreak >nul
-                    curl -s http://localhost:%PORT_PROD%/ || echo Приложение еще запускается...
-                '''
-                echo 'Production deployment completed'
+                echo 'Deploying docker-compose...'
+                bat "%COMPOSE_CMD% down --remove-orphans"
+                bat "%COMPOSE_CMD% up -d --build"
+                bat "curl -s http://localhost:%APP_PORT%/health || exit /b 1"
             }
         }
     }
-    
+
     post {
-        always {
-            echo 'Pipeline завершен'
-        }
         success {
-            echo 'Pipeline выполнен успешно!'
+            echo 'CI/CD pipeline completed successfully!'
+            withCredentials([string(credentialsId: 'github-token2', variable: 'TOKEN')]) {
+                bat """
+                    curl -H "Authorization: token %TOKEN%" ^
+                         -H "Accept: application/vnd.github+json" ^
+                         -X POST ^
+                         https://api.github.com/repos/Veronika-Gerasimova/lab1_devops/statuses/%GIT_COMMIT% ^
+                         -d "{\\"state\\":\\"success\\",\\"context\\":\\"Jenkins\\",\\"description\\":\\"Build succeeded\\"}"
+                """
+            }
         }
         failure {
-            echo 'Pipeline завершился с ошибкой!'
+            echo 'Pipeline failed! Check the logs.'
+            withCredentials([string(credentialsId: 'github-token2', variable: 'TOKEN')]) {
+                bat """
+                    curl -H "Authorization: token %TOKEN%" ^
+                         -H "Accept: application/vnd.github+json" ^
+                         -X POST ^
+                         https://api.github.com/repos/Veronika-Gerasimova/lab1_devops/statuses/%GIT_COMMIT% ^
+                         -d "{\\"state\\":\\"failure\\",\\"context\\":\\"Jenkins\\",\\"description\\":\\"Build failed\\"}"
+                """
+            }
         }
     }
 }
