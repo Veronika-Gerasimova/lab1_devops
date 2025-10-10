@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    triggers {
+        githubPush()
+    }
+
     environment {
         JAVA_TOOL_OPTIONS = "-Dfile.encoding=UTF-8"
         REGISTRY = 'ghcr.io'
