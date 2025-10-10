@@ -60,6 +60,31 @@ pipeline {
             }
         }
 
+        stage('Docker Build & Push') {
+            steps {
+                script {
+                    def IMAGE = "veronikagerasimova/devops-app"
+                    def TAG = env.BRANCH_NAME ? env.BRANCH_NAME.replaceAll('[^a-zA-Z0-9_.-]','-') : 'latest'
+                    def IMAGE_TAG = "${IMAGE}:${TAG}"
+                    def IMAGE_LATEST = "${IMAGE}:latest"
+                    echo "Building Docker image: ${IMAGE_TAG}"
+                }
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKERHUB_USER', passwordVariable: 'DOCKERHUB_TOKEN')]) {
+                    bat '''
+                        docker version
+                        echo Logging in to Docker Hub...
+                        echo %DOCKERHUB_TOKEN% | docker login -u %DOCKERHUB_USER% --password-stdin
+                        echo Building image...
+                        docker build -t veronikagerasimova/devops-app:%BRANCH_NAME% -t veronikagerasimova/devops-app:latest .
+                        echo Pushing images...
+                        docker push veronikagerasimova/devops-app:%BRANCH_NAME%
+                        docker push veronikagerasimova/devops-app:latest
+                        echo Docker push completed.
+                    '''
+                }
+            }
+        }
+
         stage('Deploy to Production') {
             when {
                 allOf {
