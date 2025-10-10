@@ -22,16 +22,14 @@ USER app
 # Expose port
 EXPOSE 5000
 
-# Health check (use Python, no curl dependency)
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD python - <<'PY'
-import sys, urllib.request
-try:
-    with urllib.request.urlopen('http://localhost:5000/', timeout=2) as r:
-        sys.exit(0 if r.status == 200 else 1)
-except Exception:
-    sys.exit(1)
-PY
+# Health check (use Python one-liner, no curl dependency)
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \\
+  CMD python -c "import sys, urllib.request;\n\
+try:\n\
+    r = urllib.request.urlopen('http://localhost:5000/', timeout=2);\n\
+    sys.exit(0 if getattr(r, 'status', 200) == 200 else 1)\n\
+except Exception:\n\
+    sys.exit(1)"
 
 # Run the application
 CMD ["python", "app.py"]
